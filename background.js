@@ -373,6 +373,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (!session || !session.queue) return { hasQueue: false, queueLength: 0, location: '' };
       return { hasQueue: true, queueLength: session.queue.length, location: session.location || '' };
     }
+    if (msg.type === 'GET_ACTIVE_CRAWL_TABS') {
+      const o = await chrome.storage.local.get(CRAWL_STATE_BY_TAB_KEY);
+      const byTab = o[CRAWL_STATE_BY_TAB_KEY] || {};
+      const list = [];
+      for (const tabIdStr of Object.keys(byTab)) {
+        const session = byTab[tabIdStr];
+        if (!session || !session.queue || session.queue.length === 0) continue;
+        const tabId = parseInt(tabIdStr, 10);
+        if (Number.isNaN(tabId)) continue;
+        try {
+          const tab = await chrome.tabs.get(tabId);
+          list.push({
+            tabId: tab.id,
+            windowId: tab.windowId,
+            title: tab.title || 'Tab ' + tab.id,
+            location: session.location || '',
+            queueLength: session.queue.length,
+            currentIndex: session.index != null ? session.index : 0
+          });
+        } catch (e) {
+          // Tab đã đóng, bỏ qua
+        }
+      }
+      return { tabs: list };
+    }
     if (msg.type === 'START_CRAWL_TAB') {
       const tabId = msg.tabId;
       const o = await chrome.storage.local.get(CRAWL_STATE_BY_TAB_KEY);

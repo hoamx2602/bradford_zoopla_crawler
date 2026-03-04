@@ -15,6 +15,7 @@
   const linksLocationSpan = document.getElementById('linksLocationSpan');
   const tabContextLabel = document.getElementById('tabContextLabel');
   const btnCrawlPages = document.getElementById('btnCrawlPages');
+  const activeCrawlTabsList = document.getElementById('activeCrawlTabsList');
   const savedCount = document.getElementById('savedCount');
   const btnExportCsv = document.getElementById('btnExportCsv');
   const btnClearAll = document.getElementById('btnClearAll');
@@ -84,6 +85,42 @@
     }
   }
 
+  async function refreshActiveCrawlTabs() {
+    if (!activeCrawlTabsList) return;
+    const { tabs } = await chrome.runtime.sendMessage({ type: 'GET_ACTIVE_CRAWL_TABS' }) || {};
+    if (!tabs || tabs.length === 0) {
+      activeCrawlTabsList.innerHTML = '<p class="card-desc muted">Không có tab nào đang crawl.</p>';
+      return;
+    }
+    activeCrawlTabsList.innerHTML = '';
+    for (const t of tabs) {
+      const label = t.location ? `${t.location} — ${t.currentIndex + 1}/${t.queueLength}` : `${t.currentIndex + 1}/${t.queueLength} link`;
+      const title = t.title && t.title.trim() ? t.title.trim() : `Tab ${t.tabId}`;
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'active-crawl-tab-item';
+      el.dataset.tabId = String(t.tabId);
+      el.dataset.windowId = String(t.windowId);
+      el.innerHTML = `<span class="tab-title">${escapeHtml(title)}</span><span class="tab-meta">${escapeHtml(label)} · Bấm để chuyển tab</span>`;
+      el.addEventListener('click', async () => {
+        const id = parseInt(el.dataset.tabId, 10);
+        const winId = parseInt(el.dataset.windowId, 10);
+        try {
+          await chrome.windows.update(winId, { focused: true });
+          await chrome.tabs.update(id, { active: true });
+          window.close();
+        } catch (e) {}
+      });
+      activeCrawlTabsList.appendChild(el);
+    }
+  }
+
+  function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
   async function refreshLinksInfo() {
     const tab = await getActiveTab();
     if (!tab?.id) return;
@@ -117,6 +154,7 @@
     } else if (progress.status === 'done') {
       collectProgressText.textContent = `Xong: ${progress.linkCount} link (${progress.pagesDone || progress.currentPage} trang).`;
       await refreshLinksInfo();
+      await refreshActiveCrawlTabs();
     } else if (progress.status === 'error') {
       collectProgressText.textContent = 'Lỗi: ' + (progress.error || '');
     }
@@ -199,6 +237,7 @@
         } else {
           btnCrawlPages.textContent = 'Crawl đang chạy (tự đẩy backend mỗi X bản ghi)';
         }
+        await refreshActiveCrawlTabs();
       } else {
         btnCrawlPages.textContent = 'Crawl từng trang';
         alert(result?.error || 'Lỗi');
@@ -237,6 +276,7 @@
       await refreshConfigUI();
       await refreshSavedCount();
       await refreshLinksInfo();
+      refreshActiveCrawlTabs();
       linksInfo.classList.add('hidden');
       collectProgress.classList.add('hidden');
       inputMaxRecords.value = 500;
@@ -267,4 +307,5 @@
   refreshConfigUI();
   refreshCollectionProgress();
   refreshLinksInfo();
+  refreshActiveCrawlTabs();
 })();

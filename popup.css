@@ -79,6 +79,47 @@
   color: var(--text-muted);
 }
 
+.active-crawl-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.active-crawl-tab-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background .15s, border-color .15s, box-shadow .15s;
+}
+
+.active-crawl-tab-item:hover {
+  background: var(--primary-light);
+  border-color: rgba(15, 118, 110, .35);
+  box-shadow: 0 1px 4px rgba(15, 118, 110, .15);
+}
+
+.active-crawl-tab-item .tab-title {
+  font-weight: 500;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.active-crawl-tab-item .tab-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
 .form-group {
   margin-bottom: 10px;
 }
