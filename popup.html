@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup">
+    <h1>Zoopla Crawler</h1>
+
+    <section class="section">
+      <h2>Trang hiện tại</h2>
+      <p id="pageStatus" class="muted">Mở Zoopla để bắt đầu.</p>
+      <div id="currentPageActions" class="hidden">
+        <button type="button" id="btnExtractOne" class="btn btn-primary">Lưu listing này</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Crawl nhiều trang</h2>
+      <p class="muted">Mở trang tìm kiếm Zoopla (ví dụ: for-sale/property/manchester/), sau đó bấm "Lấy danh sách link" rồi "Crawl từng trang".</p>
+      <button type="button" id="btnGetLinks" class="btn">Lấy danh sách link</button>
+      <div id="linksInfo" class="hidden">
+        <p>Đã lấy <strong id="linksCount">0</strong> link. Bấm "Crawl từng trang" để mở từng link và lưu.</p>
+        <button type="button" id="btnCrawlPages" class="btn btn-primary">Crawl từng trang</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Dữ liệu đã lưu</h2>
+      <p id="savedCount" class="muted">Đang tải...</p>
+      <div class="row">
+        <button type="button" id="btnExportCsv" class="btn">Export CSV</button>
+        <button type="button" id="btnSendBackend" class="btn">Gửi lên Backend</button>
+      </div>
+      <p id="backendStatus" class="muted small hidden"></p>
+    </section>
+
+    <section class="section">
+      <a href="#" id="linkOptions">Cài đặt (Backend URL)</a>
+    </section>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
