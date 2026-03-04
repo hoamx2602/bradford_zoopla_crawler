@@ -82,10 +82,14 @@
   function getDomAddressAndDescription() {
     let address = null;
     let description = null;
-    const sel = document.querySelector('[data-testid="address-label"]') ||
-      document.querySelector('[data-testid="listing-summary-address"]') ||
-      document.querySelector('[data-testid="listing-detail-address"]');
-    if (sel) address = (sel.textContent || '').trim();
+    const addressEl = document.querySelector('h1 address') || document.querySelector('address');
+    if (addressEl) address = (addressEl.textContent || '').trim();
+    if (!address) {
+      const sel = document.querySelector('[data-testid="address-label"]') ||
+        document.querySelector('[data-testid="listing-summary-address"]') ||
+        document.querySelector('[data-testid="listing-detail-address"]');
+      if (sel) address = (sel.textContent || '').trim();
+    }
     if (!address) {
       const h1 = document.querySelector('h1');
       if (h1) {
