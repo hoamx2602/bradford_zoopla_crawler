@@ -74,7 +74,7 @@ async function maybeAutoPushAfterSave() {
     if (res.ok) {
       await clearAllProperties();
       await chrome.storage.local.remove([
-        CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY, 'crawlQueue', 'crawlIndex', 'crawlTabId',
+        CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY, 'crawlQueue', 'crawlIndex', 'crawlTabId', 'crawlLocation',
         COLLECT_STATE_KEY, COLLECT_PROGRESS_KEY
       ]);
     }
@@ -99,7 +99,7 @@ async function pushRemainderToBackend() {
     if (res.ok) {
       await clearAllProperties();
       await chrome.storage.local.remove([
-        CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY, 'crawlQueue', 'crawlIndex', 'crawlTabId',
+        CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY, 'crawlQueue', 'crawlIndex', 'crawlTabId', 'crawlLocation',
         COLLECT_STATE_KEY, COLLECT_PROGRESS_KEY
       ]);
     }
@@ -110,12 +110,20 @@ function isSearchPageUrl(url) {
   return url && /zoopla\.co\.uk\/for-sale\/property\/[^/]+\/?/.test(url) && !/\/for-sale\/details\/\d+/.test(url);
 }
 
+/** Lấy city từ URL dạng .../for-sale/property/ickenham/ -> Ickenham */
+function getLocationFromBaseUrl(baseUrl) {
+  if (!baseUrl || typeof baseUrl !== 'string') return null;
+  const m = baseUrl.match(/\/property\/([^/?]+)/);
+  return m ? m[1].replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : null;
+}
+
 async function runMultiPageCollectStep(tabId, state) {
   const { baseUrl, currentPage, maxRecords, collectedUrls } = state;
   const done = collectedUrls.length >= maxRecords;
   if (done) {
     const queue = collectedUrls.slice(0, maxRecords);
-    await chrome.storage.local.set({ crawlQueue: queue });
+    const crawlLocation = getLocationFromBaseUrl(baseUrl);
+    await chrome.storage.local.set({ crawlQueue: queue, crawlLocation: crawlLocation || '' });
     await chrome.storage.local.remove([COLLECT_STATE_KEY]);
     await chrome.storage.local.set({
       [COLLECT_PROGRESS_KEY]: {
@@ -161,7 +169,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const done = state.collectedUrls.length >= state.maxRecords || (urls.length === 0 && state.collectedUrls.length > 0);
     if (done) {
       const queue = state.collectedUrls.slice(0, state.maxRecords);
-      await chrome.storage.local.set({ crawlQueue: queue });
+      const crawlLocation = getLocationFromBaseUrl(state.baseUrl);
+      await chrome.storage.local.set({ crawlQueue: queue, crawlLocation: crawlLocation || '' });
       await chrome.storage.local.remove([COLLECT_STATE_KEY]);
       await chrome.storage.local.set({
         [COLLECT_PROGRESS_KEY]: {
@@ -209,7 +218,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'CLEAR_ALL') {
       await clearAllProperties();
       await chrome.storage.local.remove([
-        CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY, 'crawlQueue', 'crawlIndex', 'crawlTabId',
+        CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY, 'crawlQueue', 'crawlIndex', 'crawlTabId', 'crawlLocation',
         COLLECT_STATE_KEY, COLLECT_PROGRESS_KEY
       ]);
       return { ok: true };
@@ -259,7 +268,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       state.currentPage = 1;
       if (state.collectedUrls.length >= state.maxRecords) {
         const queue = state.collectedUrls.slice(0, state.maxRecords);
-        await chrome.storage.local.set({ crawlQueue: queue });
+        const crawlLocation = getLocationFromBaseUrl(state.baseUrl);
+        await chrome.storage.local.set({ crawlQueue: queue, crawlLocation: crawlLocation || '' });
         await chrome.storage.local.remove([COLLECT_STATE_KEY]);
         await chrome.storage.local.set({
           [COLLECT_PROGRESS_KEY]: { status: 'done', linkCount: queue.length, pagesDone: 1 }
@@ -274,20 +284,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return o[COLLECT_PROGRESS_KEY] || null;
     }
     if (msg.type === 'START_CRAWL_TAB') {
-      const { crawlQueue } = await chrome.storage.local.get('crawlQueue');
+      const { crawlQueue, crawlLocation } = await chrome.storage.local.get(['crawlQueue', 'crawlLocation']);
       if (!crawlQueue || crawlQueue.length === 0) {
         return { ok: false, error: 'Chưa có danh sách link. Thu thập link trước.' };
       }
       await chrome.storage.local.set({
         crawlQueue,
         crawlIndex: 0,
-        crawlTabId: msg.tabId
+        crawlTabId: msg.tabId,
+        crawlLocation: crawlLocation || ''
       });
       await chrome.tabs.update(msg.tabId, { url: crawlQueue[0] });
       return { ok: true };
     }
     if (msg.type === 'PAGE_LOADED') {
-      const { crawlQueue, crawlIndex, crawlTabId } = await chrome.storage.local.get(['crawlQueue', 'crawlIndex', 'crawlTabId']);
+      const { crawlQueue, crawlIndex, crawlTabId, crawlLocation } = await chrome.storage.local.get(['crawlQueue', 'crawlIndex', 'crawlTabId', 'crawlLocation']);
       if (!crawlQueue || sender.tab?.id !== crawlTabId || msg.url !== crawlQueue[crawlIndex]) {
         return null;
       }
@@ -295,6 +306,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       try {
         const res = await chrome.tabs.sendMessage(sender.tab.id, { type: 'EXTRACT_CURRENT_PAGE' });
         if (res && res.data) {
+          if (crawlLocation && crawlLocation.trim()) res.data.city = crawlLocation.trim();
           await add(res.data);
           await maybeAutoPushAfterSave();
         }
@@ -305,7 +317,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         await chrome.tabs.update(sender.tab.id, { url: crawlQueue[nextIndex] });
       } else {
         await pushRemainderToBackend();
-        await chrome.storage.local.remove(['crawlQueue', 'crawlIndex', 'crawlTabId']);
+        await chrome.storage.local.remove(['crawlQueue', 'crawlIndex', 'crawlTabId', 'crawlLocation']);
       }
       return { ok: true };
     }
