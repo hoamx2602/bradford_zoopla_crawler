@@ -137,6 +137,26 @@
     return 'Other';
   }
 
+  /** Click "Read full description" nếu có, đợi nội dung mở rộng rồi resolve. */
+  function clickReadFullDescriptionAndWait() {
+    return new Promise((resolve) => {
+      const all = document.querySelectorAll('button, a, [role="button"]');
+      for (let i = 0; i < all.length; i++) {
+        const el = all[i];
+        const text = (el.textContent || '').trim().toLowerCase();
+        if (text.indexOf('read full description') !== -1) {
+          try {
+            el.click();
+            setTimeout(resolve, 2000);
+            return;
+          } catch (e) {}
+          break;
+        }
+      }
+      resolve();
+    });
+  }
+
   function extractCurrentPage() {
     const url = window.location.href;
     const location = getLocationFromSearchUrl(document.referrer) || getLocationFromSearchUrl(url) || null;
@@ -247,7 +267,14 @@
     } else if (msg.type === 'GET_SEARCH_BASE_URL') {
       sendResponse(getSearchBaseUrlAndPage());
     } else if (msg.type === 'EXTRACT_CURRENT_PAGE') {
-      sendResponse({ data: extractCurrentPage() });
+      clickReadFullDescriptionAndWait()
+        .then(function () {
+          sendResponse({ data: extractCurrentPage() });
+        })
+        .catch(function () {
+          sendResponse({ data: extractCurrentPage() });
+        });
+      return true;
     } else {
       sendResponse(null);
     }
