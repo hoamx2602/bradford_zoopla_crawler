@@ -22,11 +22,13 @@ Sau khi cài, icon extension sẽ xuất hiện trên thanh toolbar.
 ### Crawl nhiều listing từ trang tìm kiếm
 
 1. Mở Zoopla, vào **trang tìm kiếm** (ví dụ: `zoopla.co.uk/for-sale/property/manchester/`, có thể thêm bộ lọc giá, số phòng ngủ…).
-2. Trong popup extension, cấu hình:
+2. Trong popup extension, cấu hình **theo tab hiện tại**:
    - **Số bản ghi tối đa**: 1–5000 (mặc định 500) — thu thập link từ nhiều trang cho đến đủ số này thì dừng.
    - **Đẩy lên backend tự động mỗi X bản ghi**: (mặc định 50).
-3. Bấm **Thu thập link (nhiều trang)**: tab sẽ tự chuyển qua từng trang (pn=1, 2, 3…), gom link lại. Khi xong, số link hiển thị và có thể bấm **Crawl từng trang** để lấy dữ liệu từng listing.  
+3. Bấm **Lưu config** (config áp dụng cho tab này; tab khác có thể có config khác). Sau đó bấm **Thu thập link (nhiều trang)**: tab sẽ tự chuyển qua từng trang (pn=1, 2, 3…), gom link lại. Khi xong, số link hiển thị và có thể bấm **Crawl từng trang** để lấy dữ liệu từng listing.  
    **Bỏ qua link đã có trong DB:** Nếu đã cấu hình Backend URL, khi bấm **Crawl từng trang** extension sẽ gọi API kiểm tra URL nào đã có trong database và chỉ crawl những link chưa có — tiện khi bị mất mạng giữa chừng, chạy lại sẽ không ghi trùng 700 bản ghi đã lưu.
+
+**Crawl song song nhiều thành phố:** Mỗi tab có danh sách link riêng theo tab đó. Tab A mở trang tìm kiếm thành phố A → **Thu thập link** → **Crawl từng trang**. Tab B mở trang tìm kiếm thành phố B → **Thu thập link** → **Crawl từng trang**. Hai tab có thể chạy crawl đồng thời để tăng tốc (dữ liệu vẫn đẩy chung lên backend theo config đẩy tự động mỗi X bản ghi).
 
 ### Xem và export dữ liệu
 
@@ -42,10 +44,10 @@ Ví dụ: `http://localhost:8000` nếu chạy API local (xem bên dưới).
 **Luồng dùng:**
 
 1. **Cấu hình Backend** trong Cài đặt (Backend URL).
-2. Trong popup: nhập **Số bản ghi tối đa**, **Đẩy lên backend tự động mỗi (bản ghi)** (vd: 50 → cứ mỗi 50 bản ghi sẽ tự POST lên backend và xóa local + config).
-3. Bấm **Lưu config** → config bị khóa (không sửa được nữa).
-4. Bấm **Thu thập link (nhiều trang)** rồi **Crawl từng trang**. Khi đủ số bản ghi theo cấu hình, extension tự đẩy lên backend và clear dữ liệu + config.
-5. Muốn chỉnh lại config: bấm **Clear dữ liệu** → mở khóa, chỉnh số bản ghi / đẩy tự động rồi **Lưu config** lại.
+2. Trong popup (mở khi đang ở tab Zoopla cần crawl): nhập **Số bản ghi tối đa**, **Đẩy lên backend tự động mỗi (bản ghi)** (vd: 50) **cho tab này**.
+3. Bấm **Lưu config** → config tab này bị khóa (các tab khác có config riêng).
+4. Bấm **Thu thập link (nhiều trang)** rồi **Crawl từng trang**. Khi đủ số bản ghi theo config của tab, extension tự đẩy lên backend.
+5. Muốn chỉnh lại config: bấm **Clear dữ liệu** → xóa toàn bộ dữ liệu và config của mọi tab, mở khóa để chỉnh lại.
 
 Extension gửi `POST {backendUrl}/api/properties` với body JSON:  
 `{ "properties": [ { "url", "city", "price", ... }, ... ] }`.

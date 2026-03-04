@@ -20,8 +20,8 @@
     </section>
 
     <section class="card card-highlight">
-      <h2 class="card-title">Config & Thu thập</h2>
-      <p class="card-desc">Lưu config (chỉnh được sau khi Clear dữ liệu). Cấu hình Backend URL trong Cài đặt.</p>
+      <h2 class="card-title">Config & Thu thập <span id="tabContextLabel" class="muted"></span></h2>
+      <p class="card-desc">Config và queue theo <strong>tab hiện tại</strong>. Lưu config (chỉnh được sau khi Clear dữ liệu). Cấu hình Backend URL trong Cài đặt.</p>
       <div class="form-group">
         <label for="inputMaxRecords">Số bản ghi tối đa</label>
         <input type="number" id="inputMaxRecords" min="1" max="5000" value="500" class="input">
@@ -41,7 +41,7 @@
         <p id="collectProgressText" class="progress-text"></p>
       </div>
       <div id="linksInfo" class="hidden">
-        <p class="card-desc">Đã có <strong id="linksCount">0</strong> link. Bấm "Crawl từng trang" để lấy dữ liệu (tự đẩy backend mỗi X bản ghi).</p>
+        <p class="card-desc">Tab này: <strong id="linksCount">0</strong> link<span id="linksLocationSpan"></span>. Bấm "Crawl từng trang" để lấy dữ liệu (tự đẩy backend mỗi X bản ghi).</p>
         <button type="button" id="btnCrawlPages" class="btn btn-primary btn-block">Crawl từng trang</button>
       </div>
     </section>

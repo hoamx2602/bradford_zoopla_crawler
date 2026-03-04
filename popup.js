@@ -12,6 +12,8 @@
   const collectProgressText = document.getElementById('collectProgressText');
   const linksInfo = document.getElementById('linksInfo');
   const linksCount = document.getElementById('linksCount');
+  const linksLocationSpan = document.getElementById('linksLocationSpan');
+  const tabContextLabel = document.getElementById('tabContextLabel');
   const btnCrawlPages = document.getElementById('btnCrawlPages');
   const savedCount = document.getElementById('savedCount');
   const btnExportCsv = document.getElementById('btnExportCsv');
@@ -62,7 +64,9 @@
   }
 
   async function refreshConfigUI() {
-    const { crawlConfig, configLocked } = await chrome.runtime.sendMessage({ type: 'GET_CRAWL_CONFIG' });
+    const tab = await getActiveTab();
+    const tabId = tab?.id ?? null;
+    const { crawlConfig, configLocked } = await chrome.runtime.sendMessage({ type: 'GET_CRAWL_CONFIG', tabId });
     if (configLocked && crawlConfig) {
       inputMaxRecords.value = crawlConfig.maxRecords || 500;
       inputAutoPushEvery.value = crawlConfig.autoPushEvery || 50;
@@ -71,6 +75,8 @@
       configUnlockedArea.classList.add('hidden');
       configLockedArea.classList.remove('hidden');
     } else {
+      inputMaxRecords.value = crawlConfig?.maxRecords ?? 500;
+      inputAutoPushEvery.value = crawlConfig?.autoPushEvery ?? 50;
       inputMaxRecords.disabled = false;
       inputAutoPushEvery.disabled = false;
       configUnlockedArea.classList.remove('hidden');
@@ -78,10 +84,31 @@
     }
   }
 
+  async function refreshLinksInfo() {
+    const tab = await getActiveTab();
+    if (!tab?.id) return;
+    const state = await chrome.runtime.sendMessage({ type: 'GET_CRAWL_STATE_FOR_TAB', tabId: tab.id });
+    if (state?.hasQueue && state.queueLength > 0) {
+      linksCount.textContent = state.queueLength;
+      linksLocationSpan.textContent = state.location ? ` (${state.location})` : '';
+      linksInfo.classList.remove('hidden');
+    } else {
+      linksLocationSpan.textContent = '';
+      linksInfo.classList.add('hidden');
+    }
+    const cfg = await chrome.runtime.sendMessage({ type: 'GET_CRAWL_CONFIG', tabId: tab.id });
+    if (cfg?.configLocked && cfg?.crawlConfig) {
+      tabContextLabel.textContent = '— Tab này đã có config';
+    } else {
+      tabContextLabel.textContent = '— Tab này chưa có config';
+    }
+  }
+
   async function refreshCollectionProgress() {
     const progress = await chrome.runtime.sendMessage({ type: 'GET_COLLECTION_PROGRESS' });
     if (!progress) {
       collectProgress.classList.add('hidden');
+      await refreshLinksInfo();
       return;
     }
     collectProgress.classList.remove('hidden');
@@ -89,8 +116,7 @@
       collectProgressText.textContent = `Đang thu thập... Trang ${progress.currentPage || 1} · ${progress.linkCount || 0} / ${progress.maxRecords || '?'} link`;
     } else if (progress.status === 'done') {
       collectProgressText.textContent = `Xong: ${progress.linkCount} link (${progress.pagesDone || progress.currentPage} trang).`;
-      linksCount.textContent = progress.linkCount;
-      linksInfo.classList.remove('hidden');
+      await refreshLinksInfo();
     } else if (progress.status === 'error') {
       collectProgressText.textContent = 'Lỗi: ' + (progress.error || '');
     }
@@ -107,7 +133,7 @@
     try {
       const result = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_CURRENT_PAGE' });
       if (result && result.data) {
-        await chrome.runtime.sendMessage({ type: 'SAVE_PROPERTY', data: result.data });
+        await chrome.runtime.sendMessage({ type: 'SAVE_PROPERTY', data: result.data, tabId: tab.id });
         await refreshSavedCount();
         btnExtractOne.textContent = 'Đã lưu!';
       } else {
@@ -120,13 +146,18 @@
   });
 
   btnSaveConfig.addEventListener('click', async () => {
+    const tab = await getActiveTab();
+    if (!tab?.id) return;
     const maxRecords = Math.max(1, Math.min(5000, parseInt(inputMaxRecords.value, 10) || 500));
     const autoPushEvery = Math.max(1, Math.min(1000, parseInt(inputAutoPushEvery.value, 10) || 50));
-    await chrome.storage.local.set({
-      crawlConfig: { maxRecords, autoPushEvery },
-      configLocked: true
+    await chrome.runtime.sendMessage({
+      type: 'SET_CRAWL_CONFIG_FOR_TAB',
+      tabId: tab.id,
+      maxRecords,
+      autoPushEvery
     });
     await refreshConfigUI();
+    await refreshLinksInfo();
   });
 
   btnCollectMulti.addEventListener('click', async () => {
@@ -200,17 +231,20 @@
   });
 
   btnClearAll.addEventListener('click', async () => {
-    if (!confirm('Xóa toàn bộ dữ liệu local và config, mở khóa để chỉnh lại. Tiếp tục?')) return;
+    if (!confirm('Xóa toàn bộ dữ liệu local và config của mọi tab, mở khóa để chỉnh lại. Tiếp tục?')) return;
     try {
       await chrome.runtime.sendMessage({ type: 'CLEAR_ALL' });
       await refreshConfigUI();
       await refreshSavedCount();
+      await refreshLinksInfo();
       linksInfo.classList.add('hidden');
       collectProgress.classList.add('hidden');
       inputMaxRecords.value = 500;
       inputAutoPushEvery.value = 50;
       inputMaxRecords.disabled = false;
       inputAutoPushEvery.disabled = false;
+      if (tabContextLabel) tabContextLabel.textContent = '';
+      if (linksLocationSpan) linksLocationSpan.textContent = '';
     } catch (e) {
       alert('Lỗi: ' + (e.message || ''));
     }
@@ -232,12 +266,5 @@
   refreshSavedCount();
   refreshConfigUI();
   refreshCollectionProgress();
-
-  chrome.storage.local.get('crawlQueue').then((o) => {
-    const queue = o.crawlQueue || [];
-    if (queue.length > 0) {
-      linksCount.textContent = queue.length;
-      linksInfo.classList.remove('hidden');
-    }
-  });
+  refreshLinksInfo();
 })();
