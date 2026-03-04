@@ -21,7 +21,7 @@
 
     <section class="card card-highlight">
       <h2 class="card-title">Config & Thu thập <span id="tabContextLabel" class="muted"></span></h2>
-      <p class="card-desc">Config và queue theo <strong>tab hiện tại</strong>. Lưu config (chỉnh được sau khi Clear dữ liệu). Cấu hình Backend URL trong Cài đặt.</p>
+      <p class="card-desc">Config và queue theo <strong>tab hiện tại</strong>. Mỗi tab có config và queue riêng: Lưu config (chỉnh được sau khi Clear dữ liệu). Cấu hình Backend URL trong Cài đặt.</p>
       <div class="form-group">
         <label for="inputMaxRecords">Số bản ghi tối đa</label>
         <input type="number" id="inputMaxRecords" min="1" max="5000" value="500" class="input">
@@ -40,15 +40,18 @@
       <div id="collectProgress" class="progress-box hidden">
         <p id="collectProgressText" class="progress-text"></p>
       </div>
-      <div id="linksInfo" class="hidden">
-        <p class="card-desc">Tab này: <strong id="linksCount">0</strong> link<span id="linksLocationSpan"></span>. Bấm "Crawl từng trang" để lấy dữ liệu (tự đẩy backend mỗi X bản ghi).</p>
-        <button type="button" id="btnCrawlPages" class="btn btn-primary btn-block">Crawl từng trang</button>
+      <div id="linksInfo" class="links-info-box">
+        <p id="linksInfoNoQueue" class="card-desc muted">Tab này chưa có link. Lưu config (nếu chưa) rồi bấm <strong>Thu thập link (nhiều trang)</strong>.</p>
+        <div id="linksInfoHasQueue" class="hidden">
+          <p class="card-desc">Tab này: <strong id="linksCount">0</strong> link<span id="linksLocationSpan"></span>. Bấm "Crawl từng trang" để lấy dữ liệu (tự đẩy backend mỗi X bản ghi).</p>
+          <button type="button" id="btnCrawlPages" class="btn btn-primary btn-block">Crawl từng trang</button>
+        </div>
       </div>
     </section>
 
     <section class="card">
       <h2 class="card-title">Tab đang crawl</h2>
-      <p class="card-desc muted">Các tab đang có queue / đang chạy crawl. Bấm để chuyển đến tab đó.</p>
+      <p class="card-desc muted">Các tab khác có queue hoặc đang chạy crawl: bấm vào dòng bên dưới để chuyển sang tab đó. Ở tab đó mở lại popup để Thu thập link hoặc Crawl từng trang.</p>
       <div id="activeCrawlTabsList" class="active-crawl-tabs"></div>
     </section>
 

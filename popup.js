@@ -11,6 +11,8 @@
   const collectProgress = document.getElementById('collectProgress');
   const collectProgressText = document.getElementById('collectProgressText');
   const linksInfo = document.getElementById('linksInfo');
+  const linksInfoNoQueue = document.getElementById('linksInfoNoQueue');
+  const linksInfoHasQueue = document.getElementById('linksInfoHasQueue');
   const linksCount = document.getElementById('linksCount');
   const linksLocationSpan = document.getElementById('linksLocationSpan');
   const tabContextLabel = document.getElementById('tabContextLabel');
@@ -128,10 +130,12 @@
     if (state?.hasQueue && state.queueLength > 0) {
       linksCount.textContent = state.queueLength;
       linksLocationSpan.textContent = state.location ? ` (${state.location})` : '';
-      linksInfo.classList.remove('hidden');
+      if (linksInfoNoQueue) linksInfoNoQueue.classList.add('hidden');
+      if (linksInfoHasQueue) linksInfoHasQueue.classList.remove('hidden');
     } else {
       linksLocationSpan.textContent = '';
-      linksInfo.classList.add('hidden');
+      if (linksInfoNoQueue) linksInfoNoQueue.classList.remove('hidden');
+      if (linksInfoHasQueue) linksInfoHasQueue.classList.add('hidden');
     }
     const cfg = await chrome.runtime.sendMessage({ type: 'GET_CRAWL_CONFIG', tabId: tab.id });
     if (cfg?.configLocked && cfg?.crawlConfig) {
@@ -142,7 +146,9 @@
   }
 
   async function refreshCollectionProgress() {
-    const progress = await chrome.runtime.sendMessage({ type: 'GET_COLLECTION_PROGRESS' });
+    const tab = await getActiveTab();
+    const tabId = tab?.id ?? null;
+    const progress = await chrome.runtime.sendMessage({ type: 'GET_COLLECTION_PROGRESS', tabId });
     if (!progress) {
       collectProgress.classList.add('hidden');
       await refreshLinksInfo();
@@ -277,7 +283,6 @@
       await refreshSavedCount();
       await refreshLinksInfo();
       refreshActiveCrawlTabs();
-      linksInfo.classList.add('hidden');
       collectProgress.classList.add('hidden');
       inputMaxRecords.value = 500;
       inputAutoPushEvery.value = 50;
