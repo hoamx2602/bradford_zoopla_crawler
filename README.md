@@ -23,8 +23,8 @@ Sau khi cài, icon extension sẽ xuất hiện trên thanh toolbar.
 
 1. Mở Zoopla, vào **trang tìm kiếm** (ví dụ: `zoopla.co.uk/for-sale/property/manchester/`, có thể thêm bộ lọc giá, số phòng ngủ…).
 2. Trong popup extension, cấu hình:
-   - **Số trang tối đa**: 1–100 (mặc định 5) — số trang kết quả tìm kiếm sẽ lần lượt mở để lấy link.
-   - **Số bản ghi tối đa**: 1–5000 (mặc định 500) — dừng thu thập khi đủ số link này.
+   - **Số bản ghi tối đa**: 1–5000 (mặc định 500) — thu thập link từ nhiều trang cho đến đủ số này thì dừng.
+   - **Đẩy lên backend tự động mỗi X bản ghi**: (mặc định 50).
 3. Bấm **Thu thập link (nhiều trang)**: tab sẽ tự chuyển qua từng trang (pn=1, 2, 3…), gom link lại. Khi xong, số link hiển thị và có thể bấm **Crawl từng trang** để lấy dữ liệu từng listing.
 
 ### Xem và export dữ liệu
@@ -38,8 +38,16 @@ Sau khi cài, icon extension sẽ xuất hiện trên thanh toolbar.
 Bấm **Cài đặt (Backend URL)** trong popup → nhập URL gốc của backend (không có `/api/properties` ở cuối).  
 Ví dụ: `http://localhost:8000` nếu chạy API local (xem bên dưới).
 
-Extension sẽ gửi `POST {backendUrl}/api/properties` với body JSON:  
-`{ "properties": [ { "url", "city", "price", "address", "property_type", "bedrooms", "bathrooms", "living_rooms", "area_sqft", "description", "epc_rating" }, ... ] }`.
+**Luồng dùng:**
+
+1. **Cấu hình Backend** trong Cài đặt (Backend URL).
+2. Trong popup: nhập **Số bản ghi tối đa**, **Đẩy lên backend tự động mỗi (bản ghi)** (vd: 50 → cứ mỗi 50 bản ghi sẽ tự POST lên backend và xóa local + config).
+3. Bấm **Lưu config** → config bị khóa (không sửa được nữa).
+4. Bấm **Thu thập link (nhiều trang)** rồi **Crawl từng trang**. Khi đủ số bản ghi theo cấu hình, extension tự đẩy lên backend và clear dữ liệu + config.
+5. Muốn chỉnh lại config: bấm **Clear dữ liệu** → mở khóa, chỉnh số bản ghi / đẩy tự động rồi **Lưu config** lại.
+
+Extension gửi `POST {backendUrl}/api/properties` với body JSON:  
+`{ "properties": [ { "url", "city", "price", ... }, ... ] }`.
 
 ## Chạy backend (app Zoopla + API) để lưu vào PostgreSQL
 

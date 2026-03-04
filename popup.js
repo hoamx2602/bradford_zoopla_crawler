@@ -2,8 +2,11 @@
   const pageStatus = document.getElementById('pageStatus');
   const currentPageActions = document.getElementById('currentPageActions');
   const btnExtractOne = document.getElementById('btnExtractOne');
-  const inputMaxPages = document.getElementById('inputMaxPages');
   const inputMaxRecords = document.getElementById('inputMaxRecords');
+  const inputAutoPushEvery = document.getElementById('inputAutoPushEvery');
+  const configUnlockedArea = document.getElementById('configUnlockedArea');
+  const configLockedArea = document.getElementById('configLockedArea');
+  const btnSaveConfig = document.getElementById('btnSaveConfig');
   const btnCollectMulti = document.getElementById('btnCollectMulti');
   const collectProgress = document.getElementById('collectProgress');
   const collectProgressText = document.getElementById('collectProgressText');
@@ -12,8 +15,7 @@
   const btnCrawlPages = document.getElementById('btnCrawlPages');
   const savedCount = document.getElementById('savedCount');
   const btnExportCsv = document.getElementById('btnExportCsv');
-  const btnSendBackend = document.getElementById('btnSendBackend');
-  const backendStatus = document.getElementById('backendStatus');
+  const btnClearAll = document.getElementById('btnClearAll');
   const linkOptions = document.getElementById('linkOptions');
 
   linkOptions.href = chrome.runtime.getURL('options.html');
@@ -46,7 +48,7 @@
       pageStatus.textContent = 'Trang chi tiết listing — có thể lưu listing này.';
       currentPageActions.classList.remove('hidden');
     } else if (isSearchPage(tab.url)) {
-      pageStatus.textContent = 'Trang tìm kiếm — cấu hình số trang/bản ghi rồi thu thập link.';
+      pageStatus.textContent = 'Trang tìm kiếm — lưu config rồi thu thập link.';
       currentPageActions.classList.add('hidden');
     } else {
       pageStatus.textContent = 'Trang Zoopla — mở trang tìm kiếm hoặc trang chi tiết.';
@@ -59,6 +61,23 @@
     savedCount.textContent = count != null ? `Đã lưu ${count} bản ghi (local).` : 'Lỗi đọc dữ liệu.';
   }
 
+  async function refreshConfigUI() {
+    const { crawlConfig, configLocked } = await chrome.runtime.sendMessage({ type: 'GET_CRAWL_CONFIG' });
+    if (configLocked && crawlConfig) {
+      inputMaxRecords.value = crawlConfig.maxRecords || 500;
+      inputAutoPushEvery.value = crawlConfig.autoPushEvery || 50;
+      inputMaxRecords.disabled = true;
+      inputAutoPushEvery.disabled = true;
+      configUnlockedArea.classList.add('hidden');
+      configLockedArea.classList.remove('hidden');
+    } else {
+      inputMaxRecords.disabled = false;
+      inputAutoPushEvery.disabled = false;
+      configUnlockedArea.classList.remove('hidden');
+      configLockedArea.classList.add('hidden');
+    }
+  }
+
   async function refreshCollectionProgress() {
     const progress = await chrome.runtime.sendMessage({ type: 'GET_COLLECTION_PROGRESS' });
     if (!progress) {
@@ -67,7 +86,7 @@
     }
     collectProgress.classList.remove('hidden');
     if (progress.status === 'collecting') {
-      collectProgressText.textContent = `Đang thu thập... Trang ${progress.currentPage}/${progress.maxPages} · ${progress.linkCount} link`;
+      collectProgressText.textContent = `Đang thu thập... Trang ${progress.currentPage || 1} · ${progress.linkCount || 0} / ${progress.maxRecords || '?'} link`;
     } else if (progress.status === 'done') {
       collectProgressText.textContent = `Xong: ${progress.linkCount} link (${progress.pagesDone || progress.currentPage} trang).`;
       linksCount.textContent = progress.linkCount;
@@ -75,12 +94,6 @@
     } else if (progress.status === 'error') {
       collectProgressText.textContent = 'Lỗi: ' + (progress.error || '');
     }
-  }
-
-  function setBackendStatus(text, isError) {
-    backendStatus.classList.remove('hidden', 'success', 'error');
-    backendStatus.textContent = text;
-    backendStatus.classList.add(isError ? 'error' : 'success');
   }
 
   btnExtractOne.addEventListener('click', async () => {
@@ -106,22 +119,28 @@
     btnExtractOne.disabled = false;
   });
 
+  btnSaveConfig.addEventListener('click', async () => {
+    const maxRecords = Math.max(1, Math.min(5000, parseInt(inputMaxRecords.value, 10) || 500));
+    const autoPushEvery = Math.max(1, Math.min(1000, parseInt(inputAutoPushEvery.value, 10) || 50));
+    await chrome.storage.local.set({
+      crawlConfig: { maxRecords, autoPushEvery },
+      configLocked: true
+    });
+    await refreshConfigUI();
+  });
+
   btnCollectMulti.addEventListener('click', async () => {
     const tab = await getActiveTab();
     if (!tab?.id || !isZooplaUrl(tab.url)) {
       alert('Mở trang tìm kiếm Zoopla (ví dụ for-sale/property/manchester/) rồi thử lại.');
       return;
     }
-    const maxPages = Math.max(1, Math.min(100, parseInt(inputMaxPages.value, 10) || 5));
-    const maxRecords = Math.max(1, Math.min(5000, parseInt(inputMaxRecords.value, 10) || 500));
     btnCollectMulti.disabled = true;
     collectProgress.classList.remove('hidden');
     collectProgressText.textContent = 'Đang bắt đầu thu thập...';
     try {
       const result = await chrome.runtime.sendMessage({
         type: 'START_MULTI_PAGE_COLLECT',
-        maxPages,
-        maxRecords,
         tabId: tab.id
       });
       if (result && result.ok) {
@@ -143,7 +162,7 @@
     btnCrawlPages.textContent = 'Đang crawl...';
     try {
       await chrome.runtime.sendMessage({ type: 'START_CRAWL_TAB', tabId: tab.id });
-      btnCrawlPages.textContent = 'Crawl đang chạy (mở popup lại để xem)';
+      btnCrawlPages.textContent = 'Crawl đang chạy (tự đẩy backend mỗi X bản ghi)';
     } catch (e) {
       btnCrawlPages.textContent = 'Crawl từng trang';
       alert('Lỗi: ' + (e.message || ''));
@@ -171,18 +190,20 @@
     }
   });
 
-  btnSendBackend.addEventListener('click', async () => {
-    backendStatus.classList.remove('hidden');
-    backendStatus.textContent = 'Đang gửi...';
+  btnClearAll.addEventListener('click', async () => {
+    if (!confirm('Xóa toàn bộ dữ liệu local và config, mở khóa để chỉnh lại. Tiếp tục?')) return;
     try {
-      const result = await chrome.runtime.sendMessage({ type: 'SEND_TO_BACKEND' });
-      if (result && result.ok) {
-        setBackendStatus('Đã gửi ' + (result.sent || 0) + ' bản ghi lên backend.', false);
-      } else {
-        setBackendStatus(result?.error || 'Chưa cấu hình Backend URL (xem Cài đặt).', true);
-      }
+      await chrome.runtime.sendMessage({ type: 'CLEAR_ALL' });
+      await refreshConfigUI();
+      await refreshSavedCount();
+      linksInfo.classList.add('hidden');
+      collectProgress.classList.add('hidden');
+      inputMaxRecords.value = 500;
+      inputAutoPushEvery.value = 50;
+      inputMaxRecords.disabled = false;
+      inputAutoPushEvery.disabled = false;
     } catch (e) {
-      setBackendStatus('Lỗi: ' + (e.message || ''), true);
+      alert('Lỗi: ' + (e.message || ''));
     }
   });
 
@@ -200,6 +221,7 @@
 
   updatePageStatus();
   refreshSavedCount();
+  refreshConfigUI();
   refreshCollectionProgress();
 
   chrome.storage.local.get('crawlQueue').then((o) => {

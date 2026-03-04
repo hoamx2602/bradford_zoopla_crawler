@@ -20,24 +20,28 @@
     </section>
 
     <section class="card card-highlight">
-      <h2 class="card-title">Thu thập link (nhiều trang)</h2>
-      <p class="card-desc">Mở trang tìm kiếm Zoopla (vd: for-sale/property/manchester/), cấu hình rồi bấm thu thập.</p>
-      <div class="form-group">
-        <label for="inputMaxPages">Số trang tối đa</label>
-        <input type="number" id="inputMaxPages" min="1" max="100" value="5" class="input">
-      </div>
+      <h2 class="card-title">Config & Thu thập</h2>
+      <p class="card-desc">Lưu config (chỉnh được sau khi Clear dữ liệu). Cấu hình Backend URL trong Cài đặt.</p>
       <div class="form-group">
         <label for="inputMaxRecords">Số bản ghi tối đa</label>
         <input type="number" id="inputMaxRecords" min="1" max="5000" value="500" class="input">
       </div>
-      <div class="btn-row">
+      <div class="form-group">
+        <label for="inputAutoPushEvery">Đẩy lên backend tự động mỗi (bản ghi)</label>
+        <input type="number" id="inputAutoPushEvery" min="1" max="1000" value="50" class="input" placeholder="50">
+      </div>
+      <div id="configUnlockedArea">
+        <button type="button" id="btnSaveConfig" class="btn btn-primary">Lưu config</button>
+      </div>
+      <div id="configLockedArea" class="hidden">
+        <p class="card-desc muted">Config đã khóa. Bấm "Clear dữ liệu" bên dưới để chỉnh lại.</p>
         <button type="button" id="btnCollectMulti" class="btn btn-primary">Thu thập link (nhiều trang)</button>
       </div>
       <div id="collectProgress" class="progress-box hidden">
         <p id="collectProgressText" class="progress-text"></p>
       </div>
       <div id="linksInfo" class="hidden">
-        <p class="card-desc">Đã có <strong id="linksCount">0</strong> link. Bấm "Crawl từng trang" để lấy dữ liệu từng listing.</p>
+        <p class="card-desc">Đã có <strong id="linksCount">0</strong> link. Bấm "Crawl từng trang" để lấy dữ liệu (tự đẩy backend mỗi X bản ghi).</p>
         <button type="button" id="btnCrawlPages" class="btn btn-primary btn-block">Crawl từng trang</button>
       </div>
     </section>
@@ -47,9 +51,8 @@
       <p id="savedCount" class="card-desc">Đang tải...</p>
       <div class="btn-row">
         <button type="button" id="btnExportCsv" class="btn">Export CSV</button>
-        <button type="button" id="btnSendBackend" class="btn">Gửi lên Backend</button>
+        <button type="button" id="btnClearAll" class="btn">Clear dữ liệu</button>
       </div>
-      <p id="backendStatus" class="status-msg hidden"></p>
     </section>
 
     <footer class="footer">

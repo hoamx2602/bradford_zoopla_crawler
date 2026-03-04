@@ -3,6 +3,8 @@ const STORE = 'properties';
 
 const COLLECT_STATE_KEY = 'multiPageCollectState';
 const COLLECT_PROGRESS_KEY = 'collectionProgress';
+const CRAWL_CONFIG_KEY = 'crawlConfig';
+const CONFIG_LOCKED_KEY = 'configLocked';
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -16,6 +18,16 @@ function openDb() {
         store.createIndex('created', 'created_at', { unique: false });
       }
     };
+  });
+}
+
+async function clearAllProperties() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const req = tx.objectStore(STORE).clear();
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
   });
 }
 
@@ -45,21 +57,71 @@ async function count() {
   return arr.length;
 }
 
+async function maybeAutoPushAfterSave() {
+  const cnt = await count();
+  const { crawlConfig, configLocked } = await chrome.storage.local.get([CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY]);
+  const { backendUrl } = await chrome.storage.sync.get('backendUrl');
+  const every = (crawlConfig && crawlConfig.autoPushEvery) ? Math.max(1, crawlConfig.autoPushEvery) : 0;
+  if (!configLocked || every <= 0 || !backendUrl || !backendUrl.trim() || cnt < every || cnt % every !== 0) return;
+  const rows = await getAll();
+  const url = backendUrl.replace(/\/$/, '') + '/api/properties';
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ properties: rows })
+    });
+    if (res.ok) {
+      await clearAllProperties();
+      await chrome.storage.local.remove([
+        CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY, 'crawlQueue', 'crawlIndex', 'crawlTabId',
+        COLLECT_STATE_KEY, COLLECT_PROGRESS_KEY
+      ]);
+    }
+  } catch (e) {}
+}
+
+/** Đẩy toàn bộ bản ghi còn lại lên backend (khi crawl xong mà số lượng < autoPushEvery). */
+async function pushRemainderToBackend() {
+  const cnt = await count();
+  if (cnt === 0) return;
+  const { configLocked } = await chrome.storage.local.get(CONFIG_LOCKED_KEY);
+  const { backendUrl } = await chrome.storage.sync.get('backendUrl');
+  if (!configLocked || !backendUrl || !backendUrl.trim()) return;
+  const rows = await getAll();
+  const url = backendUrl.replace(/\/$/, '') + '/api/properties';
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ properties: rows })
+    });
+    if (res.ok) {
+      await clearAllProperties();
+      await chrome.storage.local.remove([
+        CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY, 'crawlQueue', 'crawlIndex', 'crawlTabId',
+        COLLECT_STATE_KEY, COLLECT_PROGRESS_KEY
+      ]);
+    }
+  } catch (e) {}
+}
+
 function isSearchPageUrl(url) {
   return url && /zoopla\.co\.uk\/for-sale\/property\/[^/]+\/?/.test(url) && !/\/for-sale\/details\/\d+/.test(url);
 }
 
 async function runMultiPageCollectStep(tabId, state) {
-  const { baseUrl, currentPage, maxPages, maxRecords, collectedUrls } = state;
-  const done = currentPage > maxPages || collectedUrls.length >= maxRecords;
+  const { baseUrl, currentPage, maxRecords, collectedUrls } = state;
+  const done = collectedUrls.length >= maxRecords;
   if (done) {
-    await chrome.storage.local.set({ crawlQueue: collectedUrls });
+    const queue = collectedUrls.slice(0, maxRecords);
+    await chrome.storage.local.set({ crawlQueue: queue });
     await chrome.storage.local.remove([COLLECT_STATE_KEY]);
     await chrome.storage.local.set({
       [COLLECT_PROGRESS_KEY]: {
         status: 'done',
-        linkCount: collectedUrls.length,
-        pagesDone: currentPage - 1
+        linkCount: queue.length,
+        pagesDone: currentPage
       }
     });
     return;
@@ -73,8 +135,8 @@ async function runMultiPageCollectStep(tabId, state) {
     [COLLECT_PROGRESS_KEY]: {
       status: 'collecting',
       currentPage: nextPage,
-      maxPages,
-      linkCount: collectedUrls.length
+      linkCount: collectedUrls.length,
+      maxRecords
     }
   });
   await chrome.tabs.update(tabId, { url: nextUrl });
@@ -89,34 +151,35 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   const expecting = state.expectingUrl;
   const urlNorm = tab.url.replace(/#.*$/, '');
   if (expecting && urlNorm !== expecting.replace(/#.*$/, '')) return;
-  try {
+    try {
     const res = await chrome.tabs.sendMessage(tabId, { type: 'GET_LISTING_LINKS' });
     const urls = (res && res.urls) || [];
     const seen = new Set(state.collectedUrls);
     urls.forEach((u) => { if (!seen.has(u)) { seen.add(u); state.collectedUrls.push(u); } });
     state.collectedUrls = Array.from(seen);
     state.expectingUrl = null;
-    await chrome.storage.local.set({
-      [COLLECT_PROGRESS_KEY]: {
-        status: state.currentPage >= state.maxPages || state.collectedUrls.length >= state.maxRecords ? 'done' : 'collecting',
-        currentPage: state.currentPage,
-        maxPages: state.maxPages,
-        linkCount: state.collectedUrls.length
-      }
-    });
-    const done = state.currentPage >= state.maxPages || state.collectedUrls.length >= state.maxRecords;
+    const done = state.collectedUrls.length >= state.maxRecords || (urls.length === 0 && state.collectedUrls.length > 0);
     if (done) {
-      await chrome.storage.local.set({ crawlQueue: state.collectedUrls });
+      const queue = state.collectedUrls.slice(0, state.maxRecords);
+      await chrome.storage.local.set({ crawlQueue: queue });
       await chrome.storage.local.remove([COLLECT_STATE_KEY]);
       await chrome.storage.local.set({
         [COLLECT_PROGRESS_KEY]: {
           status: 'done',
-          linkCount: state.collectedUrls.length,
+          linkCount: queue.length,
           pagesDone: state.currentPage
         }
       });
       return;
     }
+    await chrome.storage.local.set({
+      [COLLECT_PROGRESS_KEY]: {
+        status: 'collecting',
+        currentPage: state.currentPage,
+        linkCount: state.collectedUrls.length,
+        maxRecords: state.maxRecords
+      }
+    });
     await chrome.storage.local.set({ [COLLECT_STATE_KEY]: state });
     await runMultiPageCollectStep(tabId, state);
   } catch (e) {
@@ -138,17 +201,35 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'SAVE_PROPERTY') {
       if (msg.data && msg.data.url) {
         await add(msg.data);
+        await maybeAutoPushAfterSave();
         return { ok: true };
       }
       return { ok: false };
+    }
+    if (msg.type === 'CLEAR_ALL') {
+      await clearAllProperties();
+      await chrome.storage.local.remove([
+        CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY, 'crawlQueue', 'crawlIndex', 'crawlTabId',
+        COLLECT_STATE_KEY, COLLECT_PROGRESS_KEY
+      ]);
+      return { ok: true };
+    }
+    if (msg.type === 'GET_CRAWL_CONFIG') {
+      const o = await chrome.storage.local.get([CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY]);
+      return { crawlConfig: o[CRAWL_CONFIG_KEY] || null, configLocked: !!o[CONFIG_LOCKED_KEY] };
     }
     if (msg.type === 'SET_QUEUE') {
       await chrome.storage.local.set({ crawlQueue: msg.urls || [] });
       return { ok: true };
     }
     if (msg.type === 'START_MULTI_PAGE_COLLECT') {
-      const { maxPages = 5, maxRecords = 500, tabId } = msg;
+      const { tabId } = msg;
       if (!tabId) return { ok: false, error: 'Thiếu tab.' };
+      const { crawlConfig, configLocked } = await chrome.storage.local.get([CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY]);
+      if (!configLocked || !crawlConfig) {
+        return { ok: false, error: 'Chưa lưu config. Nhập số bản ghi và đẩy tự động rồi bấm "Lưu config".' };
+      }
+      const maxRecords = Math.max(1, Math.min(5000, crawlConfig.maxRecords || 500));
       let baseUrl, currentPage;
       try {
         const res = await chrome.tabs.sendMessage(tabId, { type: 'GET_SEARCH_BASE_URL' });
@@ -164,24 +245,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         tabId,
         baseUrl,
         currentPage,
-        maxPages: Math.max(1, Math.min(100, maxPages)),
-        maxRecords: Math.max(1, Math.min(5000, maxRecords)),
+        maxRecords,
         collectedUrls: [],
         expectingUrl: null
       };
       await chrome.storage.local.set({ [COLLECT_STATE_KEY]: state });
       await chrome.storage.local.set({
-        [COLLECT_PROGRESS_KEY]: { status: 'collecting', currentPage: 1, maxPages: state.maxPages, linkCount: 0 }
+        [COLLECT_PROGRESS_KEY]: { status: 'collecting', currentPage: 1, linkCount: 0, maxRecords }
       });
       const res = await chrome.tabs.sendMessage(tabId, { type: 'GET_LISTING_LINKS' });
       const urls = (res && res.urls) || [];
       state.collectedUrls = urls;
       state.currentPage = 1;
-      if (state.collectedUrls.length >= state.maxRecords || state.currentPage >= state.maxPages) {
-        await chrome.storage.local.set({ crawlQueue: state.collectedUrls });
+      if (state.collectedUrls.length >= state.maxRecords) {
+        const queue = state.collectedUrls.slice(0, state.maxRecords);
+        await chrome.storage.local.set({ crawlQueue: queue });
         await chrome.storage.local.remove([COLLECT_STATE_KEY]);
         await chrome.storage.local.set({
-          [COLLECT_PROGRESS_KEY]: { status: 'done', linkCount: state.collectedUrls.length, pagesDone: 1 }
+          [COLLECT_PROGRESS_KEY]: { status: 'done', linkCount: queue.length, pagesDone: 1 }
         });
         return { ok: true };
       }
@@ -215,6 +296,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const res = await chrome.tabs.sendMessage(sender.tab.id, { type: 'EXTRACT_CURRENT_PAGE' });
         if (res && res.data) {
           await add(res.data);
+          await maybeAutoPushAfterSave();
         }
       } catch (e) {}
       const nextIndex = crawlIndex + 1;
@@ -222,6 +304,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         await chrome.storage.local.set({ crawlIndex: nextIndex });
         await chrome.tabs.update(sender.tab.id, { url: crawlQueue[nextIndex] });
       } else {
+        await pushRemainderToBackend();
         await chrome.storage.local.remove(['crawlQueue', 'crawlIndex', 'crawlTabId']);
       }
       return { ok: true };

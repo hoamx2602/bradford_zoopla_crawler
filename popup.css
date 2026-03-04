@@ -75,6 +75,10 @@
   margin-bottom: 0;
 }
 
+.muted {
+  color: var(--text-muted);
+}
+
 .form-group {
   margin-bottom: 10px;
 }
