@@ -6,6 +6,21 @@
     return m ? m[1].replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : null;
   }
 
+  function getSearchBaseUrlAndPage() {
+    const url = window.location.href;
+    if (!/\/for-sale\/property\/[^/]+\/?/.test(url)) return null;
+    try {
+      const u = new URL(url);
+      const pn = u.searchParams.get('pn');
+      const currentPage = pn ? parseInt(pn, 10) : 1;
+      u.searchParams.delete('pn');
+      const baseUrl = u.toString().replace(/\?$/, '');
+      return { baseUrl: baseUrl.replace(/\?$/, ''), currentPage: isNaN(currentPage) ? 1 : currentPage };
+    } catch (e) {
+      return null;
+    }
+  }
+
   function getListingUrls() {
     const seen = new Set();
     const urls = [];
@@ -229,6 +244,8 @@
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === 'GET_LISTING_LINKS') {
       sendResponse({ urls: getListingUrls() });
+    } else if (msg.type === 'GET_SEARCH_BASE_URL') {
+      sendResponse(getSearchBaseUrlAndPage());
     } else if (msg.type === 'EXTRACT_CURRENT_PAGE') {
       sendResponse({ data: extractCurrentPage() });
     } else {

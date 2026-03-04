@@ -22,8 +22,10 @@ Sau khi cài, icon extension sẽ xuất hiện trên thanh toolbar.
 ### Crawl nhiều listing từ trang tìm kiếm
 
 1. Mở Zoopla, vào **trang tìm kiếm** (ví dụ: `zoopla.co.uk/for-sale/property/manchester/`, có thể thêm bộ lọc giá, số phòng ngủ…).
-2. Bấm icon extension → bấm **Lấy danh sách link** (extension sẽ thu thập tất cả link listing trên trang hiện tại).
-3. Bấm **Crawl từng trang**: tab hiện tại sẽ tự chuyển lần lượt qua từng link, mỗi trang sẽ được trích xuất và lưu. Có thể đợi crawl xong hoặc thu nhỏ cửa sổ và làm việc khác.
+2. Trong popup extension, cấu hình:
+   - **Số trang tối đa**: 1–100 (mặc định 5) — số trang kết quả tìm kiếm sẽ lần lượt mở để lấy link.
+   - **Số bản ghi tối đa**: 1–5000 (mặc định 500) — dừng thu thập khi đủ số link này.
+3. Bấm **Thu thập link (nhiều trang)**: tab sẽ tự chuyển qua từng trang (pn=1, 2, 3…), gom link lại. Khi xong, số link hiển thị và có thể bấm **Crawl từng trang** để lấy dữ liệu từng listing.
 
 ### Xem và export dữ liệu
 

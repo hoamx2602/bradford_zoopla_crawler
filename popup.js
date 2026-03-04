@@ -2,7 +2,11 @@
   const pageStatus = document.getElementById('pageStatus');
   const currentPageActions = document.getElementById('currentPageActions');
   const btnExtractOne = document.getElementById('btnExtractOne');
-  const btnGetLinks = document.getElementById('btnGetLinks');
+  const inputMaxPages = document.getElementById('inputMaxPages');
+  const inputMaxRecords = document.getElementById('inputMaxRecords');
+  const btnCollectMulti = document.getElementById('btnCollectMulti');
+  const collectProgress = document.getElementById('collectProgress');
+  const collectProgressText = document.getElementById('collectProgressText');
   const linksInfo = document.getElementById('linksInfo');
   const linksCount = document.getElementById('linksCount');
   const btnCrawlPages = document.getElementById('btnCrawlPages');
@@ -42,7 +46,7 @@
       pageStatus.textContent = 'Trang chi tiết listing — có thể lưu listing này.';
       currentPageActions.classList.remove('hidden');
     } else if (isSearchPage(tab.url)) {
-      pageStatus.textContent = 'Trang tìm kiếm — dùng "Lấy danh sách link" rồi "Crawl từng trang".';
+      pageStatus.textContent = 'Trang tìm kiếm — cấu hình số trang/bản ghi rồi thu thập link.';
       currentPageActions.classList.add('hidden');
     } else {
       pageStatus.textContent = 'Trang Zoopla — mở trang tìm kiếm hoặc trang chi tiết.';
@@ -53,6 +57,30 @@
   async function refreshSavedCount() {
     const count = await chrome.runtime.sendMessage({ type: 'GET_COUNT' });
     savedCount.textContent = count != null ? `Đã lưu ${count} bản ghi (local).` : 'Lỗi đọc dữ liệu.';
+  }
+
+  async function refreshCollectionProgress() {
+    const progress = await chrome.runtime.sendMessage({ type: 'GET_COLLECTION_PROGRESS' });
+    if (!progress) {
+      collectProgress.classList.add('hidden');
+      return;
+    }
+    collectProgress.classList.remove('hidden');
+    if (progress.status === 'collecting') {
+      collectProgressText.textContent = `Đang thu thập... Trang ${progress.currentPage}/${progress.maxPages} · ${progress.linkCount} link`;
+    } else if (progress.status === 'done') {
+      collectProgressText.textContent = `Xong: ${progress.linkCount} link (${progress.pagesDone || progress.currentPage} trang).`;
+      linksCount.textContent = progress.linkCount;
+      linksInfo.classList.remove('hidden');
+    } else if (progress.status === 'error') {
+      collectProgressText.textContent = 'Lỗi: ' + (progress.error || '');
+    }
+  }
+
+  function setBackendStatus(text, isError) {
+    backendStatus.classList.remove('hidden', 'success', 'error');
+    backendStatus.textContent = text;
+    backendStatus.classList.add(isError ? 'error' : 'success');
   }
 
   btnExtractOne.addEventListener('click', async () => {
@@ -78,30 +106,34 @@
     btnExtractOne.disabled = false;
   });
 
-  btnGetLinks.addEventListener('click', async () => {
+  btnCollectMulti.addEventListener('click', async () => {
     const tab = await getActiveTab();
     if (!tab?.id || !isZooplaUrl(tab.url)) {
       alert('Mở trang tìm kiếm Zoopla (ví dụ for-sale/property/manchester/) rồi thử lại.');
       return;
     }
-    btnGetLinks.disabled = true;
-    btnGetLinks.textContent = 'Đang lấy...';
+    const maxPages = Math.max(1, Math.min(100, parseInt(inputMaxPages.value, 10) || 5));
+    const maxRecords = Math.max(1, Math.min(5000, parseInt(inputMaxRecords.value, 10) || 500));
+    btnCollectMulti.disabled = true;
+    collectProgress.classList.remove('hidden');
+    collectProgressText.textContent = 'Đang bắt đầu thu thập...';
     try {
-      const result = await chrome.tabs.sendMessage(tab.id, { type: 'GET_LISTING_LINKS' });
-      if (result && result.urls && result.urls.length > 0) {
-        await chrome.runtime.sendMessage({ type: 'SET_QUEUE', urls: result.urls });
-        linksCount.textContent = result.urls.length;
-        linksInfo.classList.remove('hidden');
-        btnGetLinks.textContent = 'Lấy danh sách link';
+      const result = await chrome.runtime.sendMessage({
+        type: 'START_MULTI_PAGE_COLLECT',
+        maxPages,
+        maxRecords,
+        tabId: tab.id
+      });
+      if (result && result.ok) {
+        await refreshCollectionProgress();
       } else {
-        alert('Không tìm thấy link listing. Đảm bảo đang ở trang kết quả tìm kiếm Zoopla.');
-        btnGetLinks.textContent = 'Lấy danh sách link';
+        collectProgressText.textContent = result?.error || 'Lỗi';
+        alert(result?.error || 'Lỗi');
       }
     } catch (e) {
-      alert('Lỗi: ' + (e.message || 'reload trang thử'));
-      btnGetLinks.textContent = 'Lấy danh sách link';
+      collectProgressText.textContent = 'Lỗi: ' + (e.message || '');
     }
-    btnGetLinks.disabled = false;
+    btnCollectMulti.disabled = false;
   });
 
   btnCrawlPages.addEventListener('click', async () => {
@@ -145,12 +177,12 @@
     try {
       const result = await chrome.runtime.sendMessage({ type: 'SEND_TO_BACKEND' });
       if (result && result.ok) {
-        backendStatus.textContent = 'Đã gửi ' + (result.sent || 0) + ' bản ghi lên backend.';
+        setBackendStatus('Đã gửi ' + (result.sent || 0) + ' bản ghi lên backend.', false);
       } else {
-        backendStatus.textContent = result?.error || 'Chưa cấu hình Backend URL (xem Cài đặt).';
+        setBackendStatus(result?.error || 'Chưa cấu hình Backend URL (xem Cài đặt).', true);
       }
     } catch (e) {
-      backendStatus.textContent = 'Lỗi: ' + (e.message || '');
+      setBackendStatus('Lỗi: ' + (e.message || ''), true);
     }
   });
 
@@ -168,4 +200,13 @@
 
   updatePageStatus();
   refreshSavedCount();
+  refreshCollectionProgress();
+
+  chrome.storage.local.get('crawlQueue').then((o) => {
+    const queue = o.crawlQueue || [];
+    if (queue.length > 0) {
+      linksCount.textContent = queue.length;
+      linksInfo.classList.remove('hidden');
+    }
+  });
 })();

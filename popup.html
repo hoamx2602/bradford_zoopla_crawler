@@ -6,39 +6,55 @@
 </head>
 <body>
   <div class="popup">
-    <h1>Zoopla Crawler</h1>
+    <header class="header">
+      <span class="logo">🏠</span>
+      <h1>Zoopla Crawler</h1>
+    </header>
 
-    <section class="section">
-      <h2>Trang hiện tại</h2>
-      <p id="pageStatus" class="muted">Mở Zoopla để bắt đầu.</p>
+    <section class="card">
+      <h2 class="card-title">Trang hiện tại</h2>
+      <p id="pageStatus" class="card-desc">Mở Zoopla để bắt đầu.</p>
       <div id="currentPageActions" class="hidden">
-        <button type="button" id="btnExtractOne" class="btn btn-primary">Lưu listing này</button>
+        <button type="button" id="btnExtractOne" class="btn btn-primary btn-block">Lưu listing này</button>
       </div>
     </section>
 
-    <section class="section">
-      <h2>Crawl nhiều trang</h2>
-      <p class="muted">Mở trang tìm kiếm Zoopla (ví dụ: for-sale/property/manchester/), sau đó bấm "Lấy danh sách link" rồi "Crawl từng trang".</p>
-      <button type="button" id="btnGetLinks" class="btn">Lấy danh sách link</button>
+    <section class="card card-highlight">
+      <h2 class="card-title">Thu thập link (nhiều trang)</h2>
+      <p class="card-desc">Mở trang tìm kiếm Zoopla (vd: for-sale/property/manchester/), cấu hình rồi bấm thu thập.</p>
+      <div class="form-group">
+        <label for="inputMaxPages">Số trang tối đa</label>
+        <input type="number" id="inputMaxPages" min="1" max="100" value="5" class="input">
+      </div>
+      <div class="form-group">
+        <label for="inputMaxRecords">Số bản ghi tối đa</label>
+        <input type="number" id="inputMaxRecords" min="1" max="5000" value="500" class="input">
+      </div>
+      <div class="btn-row">
+        <button type="button" id="btnCollectMulti" class="btn btn-primary">Thu thập link (nhiều trang)</button>
+      </div>
+      <div id="collectProgress" class="progress-box hidden">
+        <p id="collectProgressText" class="progress-text"></p>
+      </div>
       <div id="linksInfo" class="hidden">
-        <p>Đã lấy <strong id="linksCount">0</strong> link. Bấm "Crawl từng trang" để mở từng link và lưu.</p>
-        <button type="button" id="btnCrawlPages" class="btn btn-primary">Crawl từng trang</button>
+        <p class="card-desc">Đã có <strong id="linksCount">0</strong> link. Bấm "Crawl từng trang" để lấy dữ liệu từng listing.</p>
+        <button type="button" id="btnCrawlPages" class="btn btn-primary btn-block">Crawl từng trang</button>
       </div>
     </section>
 
-    <section class="section">
-      <h2>Dữ liệu đã lưu</h2>
-      <p id="savedCount" class="muted">Đang tải...</p>
-      <div class="row">
+    <section class="card">
+      <h2 class="card-title">Dữ liệu đã lưu</h2>
+      <p id="savedCount" class="card-desc">Đang tải...</p>
+      <div class="btn-row">
         <button type="button" id="btnExportCsv" class="btn">Export CSV</button>
         <button type="button" id="btnSendBackend" class="btn">Gửi lên Backend</button>
       </div>
-      <p id="backendStatus" class="muted small hidden"></p>
+      <p id="backendStatus" class="status-msg hidden"></p>
     </section>
 
-    <section class="section">
-      <a href="#" id="linkOptions">Cài đặt (Backend URL)</a>
-    </section>
+    <footer class="footer">
+      <a href="#" id="linkOptions" class="link">Cài đặt (Backend URL)</a>
+    </footer>
   </div>
   <script src="popup.js"></script>
 </body>
