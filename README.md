@@ -25,7 +25,8 @@ Sau khi cài, icon extension sẽ xuất hiện trên thanh toolbar.
 2. Trong popup extension, cấu hình:
    - **Số bản ghi tối đa**: 1–5000 (mặc định 500) — thu thập link từ nhiều trang cho đến đủ số này thì dừng.
    - **Đẩy lên backend tự động mỗi X bản ghi**: (mặc định 50).
-3. Bấm **Thu thập link (nhiều trang)**: tab sẽ tự chuyển qua từng trang (pn=1, 2, 3…), gom link lại. Khi xong, số link hiển thị và có thể bấm **Crawl từng trang** để lấy dữ liệu từng listing.
+3. Bấm **Thu thập link (nhiều trang)**: tab sẽ tự chuyển qua từng trang (pn=1, 2, 3…), gom link lại. Khi xong, số link hiển thị và có thể bấm **Crawl từng trang** để lấy dữ liệu từng listing.  
+   **Bỏ qua link đã có trong DB:** Nếu đã cấu hình Backend URL, khi bấm **Crawl từng trang** extension sẽ gọi API kiểm tra URL nào đã có trong database và chỉ crawl những link chưa có — tiện khi bị mất mạng giữa chừng, chạy lại sẽ không ghi trùng 700 bản ghi đã lưu.
 
 ### Xem và export dữ liệu
 
@@ -48,6 +49,8 @@ Ví dụ: `http://localhost:8000` nếu chạy API local (xem bên dưới).
 
 Extension gửi `POST {backendUrl}/api/properties` với body JSON:  
 `{ "properties": [ { "url", "city", "price", ... }, ... ] }`.
+
+**Kiểm tra URL đã có:** Trước khi crawl, extension gửi `POST {backendUrl}/api/properties/check-urls` với body `{ "urls": ["...", ...] }`, backend trả về `{ "existing": ["...", ...] }` — extension sẽ chỉ crawl các URL chưa nằm trong `existing`.
 
 ## Chạy backend (app Zoopla + API) để lưu vào PostgreSQL
 

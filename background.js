@@ -102,6 +102,30 @@ async function pushRemainderToBackend() {
   } catch (e) {}
 }
 
+/** Gọi backend để lấy danh sách URL đã có trong DB, trả về Set. */
+async function fetchExistingUrlsFromBackend(urls) {
+  const { backendUrl } = await chrome.storage.sync.get('backendUrl');
+  if (!backendUrl || !backendUrl.trim()) return new Set();
+  const base = backendUrl.replace(/\/$/, '') + '/api/properties/check-urls';
+  const existing = new Set();
+  const chunkSize = 500;
+  for (let i = 0; i < urls.length; i += chunkSize) {
+    const chunk = urls.slice(i, i + chunkSize);
+    try {
+      const res = await fetch(base, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: chunk })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        (data.existing || []).forEach((u) => existing.add(u));
+      }
+    } catch (e) {}
+  }
+  return existing;
+}
+
 function isSearchPageUrl(url) {
   return url && /zoopla\.co\.uk\/for-sale\/property\/[^/]+\/?/.test(url) && !/\/for-sale\/details\/\d+/.test(url);
 }
@@ -284,14 +308,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (!crawlQueue || crawlQueue.length === 0) {
         return { ok: false, error: 'Chưa có danh sách link. Thu thập link trước.' };
       }
+      const existingSet = await fetchExistingUrlsFromBackend(crawlQueue);
+      const toCrawl = existingSet.size > 0 ? crawlQueue.filter((u) => !existingSet.has(u)) : crawlQueue;
+      if (toCrawl.length === 0) {
+        return { ok: false, error: 'Tất cả ' + crawlQueue.length + ' link đã có trong database. Không cần crawl lại.' };
+      }
       await chrome.storage.local.set({
-        crawlQueue,
+        crawlQueue: toCrawl,
         crawlIndex: 0,
         crawlTabId: msg.tabId,
         crawlLocation: crawlLocation || ''
       });
-      await chrome.tabs.update(msg.tabId, { url: crawlQueue[0] });
-      return { ok: true };
+      await chrome.tabs.update(msg.tabId, { url: toCrawl[0] });
+      return { ok: true, skipped: crawlQueue.length - toCrawl.length, total: toCrawl.length };
     }
     if (msg.type === 'PAGE_LOADED') {
       const { crawlQueue, crawlIndex, crawlTabId, crawlLocation } = await chrome.storage.local.get(['crawlQueue', 'crawlIndex', 'crawlTabId', 'crawlLocation']);

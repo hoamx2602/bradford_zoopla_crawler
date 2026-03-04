@@ -159,10 +159,19 @@
     const tab = await getActiveTab();
     if (!tab?.id) return;
     btnCrawlPages.disabled = true;
-    btnCrawlPages.textContent = 'Đang crawl...';
+    btnCrawlPages.textContent = 'Đang kiểm tra backend...';
     try {
-      await chrome.runtime.sendMessage({ type: 'START_CRAWL_TAB', tabId: tab.id });
-      btnCrawlPages.textContent = 'Crawl đang chạy (tự đẩy backend mỗi X bản ghi)';
+      const result = await chrome.runtime.sendMessage({ type: 'START_CRAWL_TAB', tabId: tab.id });
+      if (result && result.ok) {
+        if (result.skipped > 0) {
+          btnCrawlPages.textContent = 'Crawl ' + result.total + ' link (đã bỏ ' + result.skipped + ' link có sẵn)';
+        } else {
+          btnCrawlPages.textContent = 'Crawl đang chạy (tự đẩy backend mỗi X bản ghi)';
+        }
+      } else {
+        btnCrawlPages.textContent = 'Crawl từng trang';
+        alert(result?.error || 'Lỗi');
+      }
     } catch (e) {
       btnCrawlPages.textContent = 'Crawl từng trang';
       alert('Lỗi: ' + (e.message || ''));
