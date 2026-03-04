@@ -73,10 +73,6 @@ async function maybeAutoPushAfterSave() {
     });
     if (res.ok) {
       await clearAllProperties();
-      await chrome.storage.local.remove([
-        CRAWL_CONFIG_KEY, CONFIG_LOCKED_KEY, 'crawlQueue', 'crawlIndex', 'crawlTabId', 'crawlLocation',
-        COLLECT_STATE_KEY, COLLECT_PROGRESS_KEY
-      ]);
     }
   } catch (e) {}
 }
@@ -302,7 +298,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (!crawlQueue || sender.tab?.id !== crawlTabId || msg.url !== crawlQueue[crawlIndex]) {
         return null;
       }
-      await new Promise((r) => setTimeout(r, 2500));
+      await new Promise((r) => setTimeout(r, 1500));
       try {
         const res = await chrome.tabs.sendMessage(sender.tab.id, { type: 'EXTRACT_CURRENT_PAGE' });
         if (res && res.data) {
