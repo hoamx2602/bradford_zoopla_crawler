@@ -22,6 +22,7 @@
   const crawlCurrentPageSection = document.getElementById('crawlCurrentPageSection');
   const btnCrawlCurrentPage = document.getElementById('btnCrawlCurrentPage');
   const crawlCurrentPageStatus = document.getElementById('crawlCurrentPageStatus');
+  const crawlCurrentPageDesc = document.getElementById('crawlCurrentPageDesc');
 
   linkOptions.href = chrome.runtime.getURL('options.html');
 
@@ -129,11 +130,17 @@
   async function refreshCrawlCurrentPageSection() {
     const tab = await getActiveTab();
     if (!crawlCurrentPageSection || !btnCrawlCurrentPage) return;
-    if (tab?.id && isZooplaUrl(tab.url) && isDetailPage(tab.url)) {
-      crawlCurrentPageSection.classList.remove('hidden');
+    const onDetailPage = tab?.id && isZooplaUrl(tab.url) && isDetailPage(tab.url);
+    if (onDetailPage) {
+      if (crawlCurrentPageDesc) crawlCurrentPageDesc.textContent = "You're on a listing detail page. Click to save this page's data locally (and auto-push to backend if enabled).";
+      btnCrawlCurrentPage.disabled = false;
+      btnCrawlCurrentPage.style.display = '';
       if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = '';
     } else {
-      crawlCurrentPageSection.classList.add('hidden');
+      if (crawlCurrentPageDesc) crawlCurrentPageDesc.textContent = 'Open a Zoopla listing page (for-sale/details/...) in this tab to crawl this page.';
+      btnCrawlCurrentPage.disabled = true;
+      btnCrawlCurrentPage.style.display = '';
+      if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = '';
     }
   }
 
