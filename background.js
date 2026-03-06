@@ -129,21 +129,19 @@ function toCsv(rows) {
 async function maybeAutoExportCsv(tabId) {
   const { backendUrl, autoExportEvery } = await chrome.storage.sync.get(['backendUrl', 'autoExportEvery']);
   if (backendUrl && backendUrl.trim()) return;
-  const every = Math.max(1, Math.min(1000, autoExportEvery != null ? autoExportEvery : 1000));
+  const every = Math.max(1, Math.min(1000, parseInt(autoExportEvery, 10) || 1000));
   const cnt = await count();
   if (cnt < every) return;
   const rows = await getAll();
   if (rows.length === 0) return;
   const csv = '\ufeff' + toCsv(rows);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const blobUrl = URL.createObjectURL(blob);
+  const base64 = btoa(unescape(encodeURIComponent(csv)));
+  const dataUrl = 'data:text/csv;charset=utf-8;base64,' + base64;
   const now = new Date();
   const filename = 'zoopla_export_' + now.toISOString().slice(0, 10) + '_' + String(now.getHours()).padStart(2, '0') + '-' + String(now.getMinutes()).padStart(2, '0') + '.csv';
   try {
-    await chrome.downloads.download({ url: blobUrl, filename, saveAs: false });
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
-  }
+    await chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
+  } catch (e) {}
   await clearAllProperties();
 }
 
@@ -153,15 +151,13 @@ async function exportRemainderToCsvAndClear() {
   if (cnt === 0) return;
   const rows = await getAll();
   const csv = '\ufeff' + toCsv(rows);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const blobUrl = URL.createObjectURL(blob);
+  const base64 = btoa(unescape(encodeURIComponent(csv)));
+  const dataUrl = 'data:text/csv;charset=utf-8;base64,' + base64;
   const now = new Date();
   const filename = 'zoopla_export_' + now.toISOString().slice(0, 10) + '_' + String(now.getHours()).padStart(2, '0') + '-' + String(now.getMinutes()).padStart(2, '0') + '.csv';
   try {
-    await chrome.downloads.download({ url: blobUrl, filename, saveAs: false });
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
-  }
+    await chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
+  } catch (e) {}
   await clearAllProperties();
 }
 
