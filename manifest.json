@@ -3,7 +3,7 @@
   "name": "Zoopla Crawler",
   "version": "1.0.0",
   "description": "Cào dữ liệu bất động sản Zoopla từ trang hiện tại, lưu local hoặc gửi lên backend.",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "downloads"],
   "host_permissions": ["https://www.zoopla.co.uk/*"],
   "action": {
     "default_popup": "popup.html"

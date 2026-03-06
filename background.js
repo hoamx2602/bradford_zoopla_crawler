@@ -115,19 +115,70 @@ async function maybeAutoPushAfterSave(tabId) {
   } catch (e) {}
 }
 
+function toCsv(rows) {
+  const keys = ['url', 'city', 'price', 'address', 'property_type', 'bedrooms', 'bathrooms', 'living_rooms', 'area_sqft', 'description', 'epc_rating'];
+  const header = keys.join(',');
+  const escape = (v) => {
+    if (v == null) return '';
+    const s = String(v).replace(/"/g, '""');
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s + '"' : s;
+  };
+  return [header].concat(rows.map((r) => keys.map((k) => escape(r[k])).join(','))).join('\n');
+}
+
+async function maybeAutoExportCsv(tabId) {
+  const { backendUrl, autoExportEvery } = await chrome.storage.sync.get(['backendUrl', 'autoExportEvery']);
+  if (backendUrl && backendUrl.trim()) return;
+  const every = Math.max(1, Math.min(1000, autoExportEvery != null ? autoExportEvery : 1000));
+  const cnt = await count();
+  if (cnt < every) return;
+  const rows = await getAll();
+  if (rows.length === 0) return;
+  const csv = '\ufeff' + toCsv(rows);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  const now = new Date();
+  const filename = 'zoopla_export_' + now.toISOString().slice(0, 10) + '_' + String(now.getHours()).padStart(2, '0') + '-' + String(now.getMinutes()).padStart(2, '0') + '.csv';
+  try {
+    await chrome.downloads.download({ url: blobUrl, filename, saveAs: false });
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+  }
+  await clearAllProperties();
+}
+
+/** Export toàn bộ bản ghi hiện có ra CSV và tải xuống, rồi xóa local (dùng khi kết thúc crawl mà không có backend). */
+async function exportRemainderToCsvAndClear() {
+  const cnt = await count();
+  if (cnt === 0) return;
+  const rows = await getAll();
+  const csv = '\ufeff' + toCsv(rows);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  const now = new Date();
+  const filename = 'zoopla_export_' + now.toISOString().slice(0, 10) + '_' + String(now.getHours()).padStart(2, '0') + '-' + String(now.getMinutes()).padStart(2, '0') + '.csv';
+  try {
+    await chrome.downloads.download({ url: blobUrl, filename, saveAs: false });
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+  }
+  await clearAllProperties();
+}
+
 async function pushRemainderToBackend(tabId) {
   const cnt = await count();
   if (cnt === 0) {
     await removeTab(PREFIX_CRAWL, tabId);
     return;
   }
-  const cfg = await getTab(PREFIX_CFG, tabId);
-  if (!cfg || !cfg.locked) {
+  const { backendUrl } = await chrome.storage.sync.get('backendUrl');
+  if (!backendUrl || !backendUrl.trim()) {
+    await exportRemainderToCsvAndClear();
     await removeTab(PREFIX_CRAWL, tabId);
     return;
   }
-  const { backendUrl } = await chrome.storage.sync.get('backendUrl');
-  if (!backendUrl || !backendUrl.trim()) {
+  const cfg = await getTab(PREFIX_CFG, tabId);
+  if (!cfg || !cfg.locked) {
     await removeTab(PREFIX_CRAWL, tabId);
     return;
   }
@@ -243,6 +294,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (msg.data && msg.data.url) {
         await add(msg.data);
         await maybeAutoPushAfterSave(msg.tabId);
+        await maybeAutoExportCsv(msg.tabId);
         return { ok: true };
       }
       return { ok: false };
