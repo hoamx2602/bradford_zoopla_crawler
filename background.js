@@ -147,7 +147,7 @@ async function maybeAutoExportCsv(tabId) {
   await clearAllProperties();
 }
 
-/** Export toàn bộ bản ghi hiện có ra CSV và tải xuống, rồi xóa local (dùng khi kết thúc crawl mà không có backend). */
+/** Export all current records to CSV and download, then clear local (used when crawl ends without backend). */
 async function exportRemainderToCsvAndClear() {
   const cnt = await count();
   if (cnt === 0) return;
@@ -335,22 +335,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     if (msg.type === 'START_MULTI_PAGE_COLLECT') {
       const { tabId } = msg;
-      if (!tabId) return { ok: false, error: 'Thiếu tab.' };
+      if (!tabId) return { ok: false, error: 'Missing tab.' };
       const cfg = await getTab(PREFIX_CFG, tabId);
       if (!cfg || !cfg.locked) {
-        return { ok: false, error: 'Chưa lưu config cho tab này. Nhập số bản ghi và đẩy tự động rồi bấm "Lưu config".' };
+        return { ok: false, error: 'Save config for this tab first. Enter max records and auto-push, then click "Save config".' };
       }
       const maxRecords = Math.max(1, Math.min(5000, cfg.maxRecords || 500));
       let baseUrl, currentPage;
       try {
         const res = await chrome.tabs.sendMessage(tabId, { type: 'GET_SEARCH_BASE_URL' });
         if (!res || !res.baseUrl) {
-          return { ok: false, error: 'Mở trang tìm kiếm Zoopla (for-sale/property/...) rồi thử lại.' };
+          return { ok: false, error: 'Open a Zoopla search page (for-sale/property/...) then try again.' };
         }
         baseUrl = res.baseUrl;
         currentPage = res.currentPage || 1;
       } catch (e) {
-        return { ok: false, error: 'Không đọc được trang. Reload trang Zoopla rồi thử lại.' };
+        return { ok: false, error: 'Could not read page. Reload the Zoopla tab and try again.' };
       }
       const state = { baseUrl, currentPage, maxRecords, collectedUrls: [], expectingUrl: null };
       await setTab(PREFIX_COLLECT, tabId, state);
@@ -408,13 +408,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const tabId = msg.tabId;
       const session = await getTab(PREFIX_CRAWL, tabId);
       if (!session || !session.queue || session.queue.length === 0) {
-        return { ok: false, error: 'Chưa có danh sách link trong tab này. Thu thập link trong tab này trước.' };
+        return { ok: false, error: 'No link list in this tab. Collect links in this tab first.' };
       }
       const { queue, location: crawlLocation } = session;
       const existingSet = await fetchExistingUrlsFromBackend(queue);
       const toCrawl = existingSet.size > 0 ? queue.filter((u) => !existingSet.has(u)) : queue;
       if (toCrawl.length === 0) {
-        return { ok: false, error: 'Tất cả ' + queue.length + ' link đã có trong database. Không cần crawl lại.' };
+        return { ok: false, error: 'All ' + queue.length + ' links already exist in database. No need to crawl again.' };
       }
       await setTab(PREFIX_CRAWL, tabId, { queue: toCrawl, index: 0, location: crawlLocation || '' });
       await chrome.tabs.update(tabId, { url: toCrawl[0] });
@@ -448,7 +448,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'SEND_TO_BACKEND') {
       const { backendUrl } = await chrome.storage.sync.get('backendUrl');
       if (!backendUrl || !backendUrl.trim()) {
-        return { ok: false, error: 'Chưa cấu hình Backend URL trong Cài đặt.' };
+        return { ok: false, error: 'Backend URL not configured in Settings.' };
       }
       const rows = await getAll();
       if (rows.length === 0) {

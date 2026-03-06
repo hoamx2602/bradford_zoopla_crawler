@@ -159,10 +159,10 @@
     </div>
 
     <div class="card">
-      <h2 class="card-title">Khi không dùng Backend</h2>
-      <p class="desc">Nếu để trống Backend URL, dữ liệu lưu local. Đạt đủ số bản ghi bên dưới thì extension tự export CSV và tải xuống máy, rồi xóa bản ghi local để tiếp tục đợt mới.</p>
+      <h2 class="card-title">When not using Backend</h2>
+      <p class="desc">If Backend URL is left empty, data is stored locally. When the count below is reached, the extension will auto-export a CSV and download it, then clear local records for the next batch. When a crawl run finishes with fewer records, it will also export once.</p>
 
-      <label for="autoExportEvery">Tự export CSV mỗi (bản ghi)</label>
+      <label for="autoExportEvery">Auto-export CSV every (records)</label>
       <input type="number" id="autoExportEvery" min="1" max="1000" value="1000" placeholder="1000">
 
       <div class="btn-row">
@@ -170,6 +170,7 @@
         <span id="statusExport" class="status"></span>
       </div>
     </div>
+  </div>
   <script src="options.js"></script>
 </body>
 </html>

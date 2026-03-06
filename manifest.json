@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Zoopla Crawler",
   "version": "1.0.0",
-  "description": "Cào dữ liệu bất động sản Zoopla từ trang hiện tại, lưu local hoặc gửi lên backend.",
+  "description": "Scrape Zoopla property data from the current page, save locally or send to backend.",
   "permissions": ["storage", "activeTab", "scripting", "downloads"],
   "host_permissions": ["https://www.zoopla.co.uk/*"],
   "action": {

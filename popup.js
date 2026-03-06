@@ -202,26 +202,26 @@
   btnCrawlCurrentPage.addEventListener('click', async () => {
     const tab = await getActiveTab();
     if (!tab?.id || !isZooplaUrl(tab.url) || !isDetailPage(tab.url)) {
-      if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Mở trang chi tiết Zoopla (for-sale/details/...) rồi thử lại.';
+      if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Open a Zoopla listing page (for-sale/details/...) then try again.';
       return;
     }
     btnCrawlCurrentPage.disabled = true;
-    if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Đang trích xuất...';
+    if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Extracting...';
     try {
       const res = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_CURRENT_PAGE' });
       if (!res?.data) {
-        if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Không đọc được dữ liệu trang.';
+        if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Could not read page data.';
         return;
       }
       const saveResult = await chrome.runtime.sendMessage({ type: 'SAVE_PROPERTY', data: res.data, tabId: tab.id });
       if (saveResult?.ok) {
-        if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Đã lưu trang này.';
+        if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Page saved.';
         await refreshSavedCount();
       } else {
-        if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Lưu thất bại.';
+        if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Save failed.';
       }
     } catch (e) {
-      if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Lỗi: ' + (e.message || e);
+      if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Error: ' + (e.message || e);
     }
     btnCrawlCurrentPage.disabled = false;
   });
