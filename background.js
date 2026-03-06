@@ -434,6 +434,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           if (crawlLocation && crawlLocation.trim()) res.data.city = crawlLocation.trim();
           await add(res.data);
           await maybeAutoPushAfterSave(tabId);
+          await maybeAutoExportCsv(tabId);
         }
       } catch (e) {}
       const nextIndex = crawlIndex + 1;
