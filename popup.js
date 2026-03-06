@@ -19,6 +19,9 @@
   const btnExportCsv = document.getElementById('btnExportCsv');
   const btnClearAll = document.getElementById('btnClearAll');
   const linkOptions = document.getElementById('linkOptions');
+  const crawlCurrentPageSection = document.getElementById('crawlCurrentPageSection');
+  const btnCrawlCurrentPage = document.getElementById('btnCrawlCurrentPage');
+  const crawlCurrentPageStatus = document.getElementById('crawlCurrentPageStatus');
 
   linkOptions.href = chrome.runtime.getURL('options.html');
 
@@ -123,6 +126,17 @@
     }
   }
 
+  async function refreshCrawlCurrentPageSection() {
+    const tab = await getActiveTab();
+    if (!crawlCurrentPageSection || !btnCrawlCurrentPage) return;
+    if (tab?.id && isZooplaUrl(tab.url) && isDetailPage(tab.url)) {
+      crawlCurrentPageSection.classList.remove('hidden');
+      if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = '';
+    } else {
+      crawlCurrentPageSection.classList.add('hidden');
+    }
+  }
+
   async function refreshCollectionProgress() {
     const tab = await getActiveTab();
     const tabId = tab?.id ?? null;
@@ -183,6 +197,33 @@
       collectProgressText.textContent = 'Error: ' + (e.message || '');
     }
     btnCollectMulti.disabled = false;
+  });
+
+  btnCrawlCurrentPage.addEventListener('click', async () => {
+    const tab = await getActiveTab();
+    if (!tab?.id || !isZooplaUrl(tab.url) || !isDetailPage(tab.url)) {
+      if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Mở trang chi tiết Zoopla (for-sale/details/...) rồi thử lại.';
+      return;
+    }
+    btnCrawlCurrentPage.disabled = true;
+    if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Đang trích xuất...';
+    try {
+      const res = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_CURRENT_PAGE' });
+      if (!res?.data) {
+        if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Không đọc được dữ liệu trang.';
+        return;
+      }
+      const saveResult = await chrome.runtime.sendMessage({ type: 'SAVE_PROPERTY', data: res.data, tabId: tab.id });
+      if (saveResult?.ok) {
+        if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Đã lưu trang này.';
+        await refreshSavedCount();
+      } else {
+        if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Lưu thất bại.';
+      }
+    } catch (e) {
+      if (crawlCurrentPageStatus) crawlCurrentPageStatus.textContent = 'Lỗi: ' + (e.message || e);
+    }
+    btnCrawlCurrentPage.disabled = false;
   });
 
   btnCrawlPages.addEventListener('click', async () => {
@@ -264,6 +305,7 @@
 
   refreshSavedCount();
   refreshConfigUI();
+  refreshCrawlCurrentPageSection();
   refreshCollectionProgress();
   refreshLinksInfo();
   refreshActiveCrawlTabs();
