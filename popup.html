@@ -11,60 +11,52 @@
       <h1>Zoopla Crawler</h1>
     </header>
 
-    <section class="card">
-      <h2 class="card-title">Trang hiện tại</h2>
-      <p id="pageStatus" class="card-desc">Mở Zoopla để bắt đầu.</p>
-      <div id="currentPageActions" class="hidden">
-        <button type="button" id="btnExtractOne" class="btn btn-primary btn-block">Lưu listing này</button>
-      </div>
-    </section>
-
     <section class="card card-highlight">
-      <h2 class="card-title">Config & Thu thập <span id="tabContextLabel" class="muted"></span></h2>
-      <p class="card-desc">Config và queue theo <strong>tab hiện tại</strong>. Mỗi tab có config và queue riêng: Lưu config (chỉnh được sau khi Clear dữ liệu). Cấu hình Backend URL trong Cài đặt.</p>
+      <h2 class="card-title">Config & Collect <span id="tabContextLabel" class="muted"></span></h2>
+      <p class="card-desc">Config and queue are tied to the <strong>current tab</strong>. Each tab has its own config and queue. Configure Backend URL in Settings.</p>
       <div class="form-group">
-        <label for="inputMaxRecords">Số bản ghi tối đa</label>
+        <label for="inputMaxRecords">Max records</label>
         <input type="number" id="inputMaxRecords" min="1" max="5000" value="500" class="input">
       </div>
       <div class="form-group">
-        <label for="inputAutoPushEvery">Đẩy lên backend tự động mỗi (bản ghi)</label>
+        <label for="inputAutoPushEvery">Auto-push to backend every (records)</label>
         <input type="number" id="inputAutoPushEvery" min="1" max="1000" value="50" class="input" placeholder="50">
       </div>
       <div id="configUnlockedArea">
-        <button type="button" id="btnSaveConfig" class="btn btn-primary">Lưu config</button>
+        <button type="button" id="btnSaveConfig" class="btn btn-primary">Save config</button>
       </div>
       <div id="configLockedArea" class="hidden">
-        <p class="card-desc muted">Config đã khóa. Bấm "Clear dữ liệu" bên dưới để chỉnh lại.</p>
-        <button type="button" id="btnCollectMulti" class="btn btn-primary">Thu thập link (nhiều trang)</button>
+        <p class="card-desc muted">Config is locked. Use \"Clear data\" below to unlock and edit.</p>
+        <button type="button" id="btnCollectMulti" class="btn btn-primary">Collect links (multi-page)</button>
       </div>
       <div id="collectProgress" class="progress-box hidden">
         <p id="collectProgressText" class="progress-text"></p>
       </div>
       <div id="linksInfo" class="links-info-box">
-        <p id="linksInfoNoQueue" class="card-desc muted">Tab này chưa có link. Lưu config (nếu chưa) rồi bấm <strong>Thu thập link (nhiều trang)</strong>.</p>
+        <p id="linksInfoNoQueue" class="card-desc muted">This tab has no links yet. Save config (if needed), then click <strong>Collect links (multi-page)</strong>.</p>
         <div id="linksInfoHasQueue" class="hidden">
-          <p class="card-desc">Tab này: <strong id="linksCount">0</strong> link<span id="linksLocationSpan"></span>. Bấm "Crawl từng trang" để lấy dữ liệu (tự đẩy backend mỗi X bản ghi).</p>
-          <button type="button" id="btnCrawlPages" class="btn btn-primary btn-block">Crawl từng trang</button>
+          <p class="card-desc">This tab: <strong id="linksCount">0</strong> links<span id="linksLocationSpan"></span>. Click \"Crawl pages\" to extract data (auto-push every X records).</p>
+          <button type="button" id="btnCrawlPages" class="btn btn-primary btn-block">Crawl pages</button>
         </div>
       </div>
     </section>
 
     <section class="card">
-      <h2 class="card-title">Tab đang crawl</h2>
-      <p class="card-desc muted">Các tab khác có queue hoặc đang chạy crawl: bấm vào dòng bên dưới để chuyển sang tab đó. Ở tab đó mở lại popup để Thu thập link hoặc Crawl từng trang.</p>
+      <h2 class="card-title">Crawling tabs</h2>
+      <p class="card-desc muted">Other tabs with a queue / currently crawling. Click an item to jump to that tab.</p>
       <div id="activeCrawlTabsList" class="active-crawl-tabs"></div>
     </section>
 
     <section class="card">
-      <p id="savedCount" class="card-desc">Đang tải...</p>
+      <p id="savedCount" class="card-desc">Loading...</p>
       <div class="btn-row">
         <button type="button" id="btnExportCsv" class="btn">Export CSV</button>
-        <button type="button" id="btnClearAll" class="btn">Clear dữ liệu</button>
+        <button type="button" id="btnClearAll" class="btn">Clear data</button>
       </div>
     </section>
 
     <footer class="footer">
-      <a href="#" id="linkOptions" class="link">Cài đặt (Backend URL)</a>
+      <a href="#" id="linkOptions" class="link">Settings (Backend URL)</a>
     </footer>
   </div>
   <script src="popup.js"></script>

@@ -142,10 +142,23 @@
   background: var(--card-bg);
 }
 
+.input:disabled {
+  background: #e2e8f0;
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.9;
+  -webkit-text-fill-color: var(--text-muted);
+}
+
 .input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 2px rgba(15, 118, 110, .2);
+}
+
+.input:disabled:focus {
+  border-color: var(--border);
+  box-shadow: none;
 }
 
 .btn-row {

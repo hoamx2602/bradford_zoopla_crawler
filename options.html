@@ -2,22 +2,162 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Zoopla Crawler - Cài đặt</title>
+  <title>Zoopla Crawler - Settings</title>
   <style>
-    body { font-family: system-ui, sans-serif; padding: 20px; max-width: 480px; }
-    label { display: block; margin-top: 12px; font-weight: 600; }
-    input { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; }
-    button { margin-top: 16px; padding: 8px 16px; background: #1a73e8; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
-    .hint { font-size: 12px; color: #666; margin-top: 4px; }
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #fff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --primary: #0f766e;
+      --primary-hover: #0d9488;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .wrap {
+      width: 100%;
+      max-width: 520px;
+    }
+
+    .header {
+      padding: 14px 16px;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+      color: #fff;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo { font-size: 22px; line-height: 1; }
+
+    .header h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .card {
+      margin-top: 12px;
+      padding: 14px 16px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .card-title {
+      margin: 0 0 6px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .desc {
+      margin: 0 0 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      margin: 10px 0 6px;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      background: var(--card-bg);
+      color: var(--text);
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(15, 118, 110, .18);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      align-items: center;
+    }
+
+    button {
+      padding: 10px 14px;
+      border: 1px solid var(--primary);
+      border-radius: 10px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, box-shadow .15s, border-color .15s;
+    }
+
+    button:hover {
+      background: var(--primary-hover);
+      border-color: var(--primary-hover);
+      box-shadow: 0 2px 10px rgba(15, 118, 110, .25);
+    }
+
+    .status {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .status.ok { color: #059669; }
+    .status.warn { color: #b45309; }
+    .status.err { color: #dc2626; }
   </style>
 </head>
 <body>
-  <h1>Cài đặt Zoopla Crawler</h1>
-  <label for="backendUrl">Backend URL (để gửi dữ liệu lên server)</label>
-  <input type="url" id="backendUrl" placeholder="https://your-app.onrender.com hoặc http://localhost:8501">
-  <p class="hint">Ví dụ: nếu chạy app Streamlit local: http://localhost:8501. App phải có API POST /api/properties nhận JSON { "properties": [...] }.</p>
-  <button id="save">Lưu</button>
-  <p id="status" style="margin-top:12px;color:green;"></p>
+  <div class="wrap">
+    <div class="header">
+      <span class="logo">🏠</span>
+      <h1>Zoopla Crawler Settings</h1>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Backend</h2>
+      <p class="desc">Set your API base URL (no trailing <code>/api/properties</code>). Example: <code>http://localhost:8000</code>.</p>
+
+      <label for="backendUrl">Backend URL</label>
+      <input type="url" id="backendUrl" placeholder="https://your-app.onrender.com or http://localhost:8000">
+
+      <div class="btn-row">
+        <button id="save" type="button">Save</button>
+        <span id="status" class="status"></span>
+      </div>
+
+      <p class="desc" style="margin-top:12px;">
+        The backend must expose <code>POST /api/properties</code> and accept JSON:
+        <code>{ \"properties\": [...] }</code>.
+      </p>
+    </div>
+  </div>
   <script src="options.js"></script>
 </body>
 </html>

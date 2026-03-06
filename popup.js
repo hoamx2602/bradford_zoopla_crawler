@@ -1,7 +1,4 @@
 (function () {
-  const pageStatus = document.getElementById('pageStatus');
-  const currentPageActions = document.getElementById('currentPageActions');
-  const btnExtractOne = document.getElementById('btnExtractOne');
   const inputMaxRecords = document.getElementById('inputMaxRecords');
   const inputAutoPushEvery = document.getElementById('inputAutoPushEvery');
   const configUnlockedArea = document.getElementById('configUnlockedArea');
@@ -42,28 +39,9 @@
     return /\/for-sale\/property\/[^/]+\/?/.test(url || '');
   }
 
-  async function updatePageStatus() {
-    const tab = await getActiveTab();
-    if (!tab?.url || !isZooplaUrl(tab.url)) {
-      pageStatus.textContent = 'Mở một trang Zoopla (zoopla.co.uk) để dùng extension.';
-      currentPageActions.classList.add('hidden');
-      return;
-    }
-    if (isDetailPage(tab.url)) {
-      pageStatus.textContent = 'Trang chi tiết listing — có thể lưu listing này.';
-      currentPageActions.classList.remove('hidden');
-    } else if (isSearchPage(tab.url)) {
-      pageStatus.textContent = 'Trang tìm kiếm — lưu config rồi thu thập link.';
-      currentPageActions.classList.add('hidden');
-    } else {
-      pageStatus.textContent = 'Trang Zoopla — mở trang tìm kiếm hoặc trang chi tiết.';
-      currentPageActions.classList.add('hidden');
-    }
-  }
-
   async function refreshSavedCount() {
     const count = await chrome.runtime.sendMessage({ type: 'GET_COUNT' });
-    savedCount.textContent = count != null ? `Đã lưu ${count} bản ghi (local).` : 'Lỗi đọc dữ liệu.';
+    savedCount.textContent = count != null ? `Saved ${count} records (local).` : 'Failed to read local data.';
   }
 
   async function refreshConfigUI() {
@@ -91,19 +69,19 @@
     if (!activeCrawlTabsList) return;
     const { tabs } = await chrome.runtime.sendMessage({ type: 'GET_ACTIVE_CRAWL_TABS' }) || {};
     if (!tabs || tabs.length === 0) {
-      activeCrawlTabsList.innerHTML = '<p class="card-desc muted">Không có tab nào đang crawl.</p>';
+      activeCrawlTabsList.innerHTML = '<p class="card-desc muted">No active crawling tabs.</p>';
       return;
     }
     activeCrawlTabsList.innerHTML = '';
     for (const t of tabs) {
-      const label = t.location ? `${t.location} — ${t.currentIndex + 1}/${t.queueLength}` : `${t.currentIndex + 1}/${t.queueLength} link`;
+      const label = t.location ? `${t.location} — ${t.currentIndex + 1}/${t.queueLength}` : `${t.currentIndex + 1}/${t.queueLength} links`;
       const title = t.title && t.title.trim() ? t.title.trim() : `Tab ${t.tabId}`;
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'active-crawl-tab-item';
       el.dataset.tabId = String(t.tabId);
       el.dataset.windowId = String(t.windowId);
-      el.innerHTML = `<span class="tab-title">${escapeHtml(title)}</span><span class="tab-meta">${escapeHtml(label)} · Bấm để chuyển tab</span>`;
+      el.innerHTML = `<span class="tab-title">${escapeHtml(title)}</span><span class="tab-meta">${escapeHtml(label)} · Click to switch</span>`;
       el.addEventListener('click', async () => {
         const id = parseInt(el.dataset.tabId, 10);
         const winId = parseInt(el.dataset.windowId, 10);
@@ -139,9 +117,9 @@
     }
     const cfg = await chrome.runtime.sendMessage({ type: 'GET_CRAWL_CONFIG', tabId: tab.id });
     if (cfg?.configLocked && cfg?.crawlConfig) {
-      tabContextLabel.textContent = '— Tab này đã có config';
+      tabContextLabel.textContent = '— This tab has config';
     } else {
-      tabContextLabel.textContent = '— Tab này chưa có config';
+      tabContextLabel.textContent = '— This tab has no config';
     }
   }
 
@@ -156,38 +134,15 @@
     }
     collectProgress.classList.remove('hidden');
     if (progress.status === 'collecting') {
-      collectProgressText.textContent = `Đang thu thập... Trang ${progress.currentPage || 1} · ${progress.linkCount || 0} / ${progress.maxRecords || '?'} link`;
+      collectProgressText.textContent = `Collecting... Page ${progress.currentPage || 1} · ${progress.linkCount || 0} / ${progress.maxRecords || '?'} links`;
     } else if (progress.status === 'done') {
-      collectProgressText.textContent = `Xong: ${progress.linkCount} link (${progress.pagesDone || progress.currentPage} trang).`;
+      collectProgressText.textContent = `Done: ${progress.linkCount} links (${progress.pagesDone || progress.currentPage} pages).`;
       await refreshLinksInfo();
       await refreshActiveCrawlTabs();
     } else if (progress.status === 'error') {
-      collectProgressText.textContent = 'Lỗi: ' + (progress.error || '');
+      collectProgressText.textContent = 'Error: ' + (progress.error || '');
     }
   }
-
-  btnExtractOne.addEventListener('click', async () => {
-    const tab = await getActiveTab();
-    if (!tab?.id || !isDetailPage(tab.url)) {
-      alert('Mở trang chi tiết một listing trên Zoopla rồi thử lại.');
-      return;
-    }
-    btnExtractOne.disabled = true;
-    btnExtractOne.textContent = 'Đang lấy...';
-    try {
-      const result = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_CURRENT_PAGE' });
-      if (result && result.data) {
-        await chrome.runtime.sendMessage({ type: 'SAVE_PROPERTY', data: result.data, tabId: tab.id });
-        await refreshSavedCount();
-        btnExtractOne.textContent = 'Đã lưu!';
-      } else {
-        btnExtractOne.textContent = 'Lỗi hoặc chưa load xong trang';
-      }
-    } catch (e) {
-      btnExtractOne.textContent = 'Lỗi: ' + (e.message || 'reload trang thử');
-    }
-    btnExtractOne.disabled = false;
-  });
 
   btnSaveConfig.addEventListener('click', async () => {
     const tab = await getActiveTab();
@@ -207,12 +162,12 @@
   btnCollectMulti.addEventListener('click', async () => {
     const tab = await getActiveTab();
     if (!tab?.id || !isZooplaUrl(tab.url)) {
-      alert('Mở trang tìm kiếm Zoopla (ví dụ for-sale/property/manchester/) rồi thử lại.');
+      alert('Open a Zoopla search page (e.g. for-sale/property/manchester/), then try again.');
       return;
     }
     btnCollectMulti.disabled = true;
     collectProgress.classList.remove('hidden');
-    collectProgressText.textContent = 'Đang bắt đầu thu thập...';
+    collectProgressText.textContent = 'Starting collection...';
     try {
       const result = await chrome.runtime.sendMessage({
         type: 'START_MULTI_PAGE_COLLECT',
@@ -221,11 +176,11 @@
       if (result && result.ok) {
         await refreshCollectionProgress();
       } else {
-        collectProgressText.textContent = result?.error || 'Lỗi';
-        alert(result?.error || 'Lỗi');
+        collectProgressText.textContent = result?.error || 'Error';
+        alert(result?.error || 'Error');
       }
     } catch (e) {
-      collectProgressText.textContent = 'Lỗi: ' + (e.message || '');
+      collectProgressText.textContent = 'Error: ' + (e.message || '');
     }
     btnCollectMulti.disabled = false;
   });
@@ -234,23 +189,23 @@
     const tab = await getActiveTab();
     if (!tab?.id) return;
     btnCrawlPages.disabled = true;
-    btnCrawlPages.textContent = 'Đang kiểm tra backend...';
+    btnCrawlPages.textContent = 'Checking backend...';
     try {
       const result = await chrome.runtime.sendMessage({ type: 'START_CRAWL_TAB', tabId: tab.id });
       if (result && result.ok) {
         if (result.skipped > 0) {
-          btnCrawlPages.textContent = 'Crawl ' + result.total + ' link (đã bỏ ' + result.skipped + ' link có sẵn)';
+          btnCrawlPages.textContent = 'Crawling ' + result.total + ' links (skipped ' + result.skipped + ' existing)';
         } else {
-          btnCrawlPages.textContent = 'Crawl đang chạy (tự đẩy backend mỗi X bản ghi)';
+          btnCrawlPages.textContent = 'Crawling (auto-push every X records)';
         }
         await refreshActiveCrawlTabs();
       } else {
-        btnCrawlPages.textContent = 'Crawl từng trang';
-        alert(result?.error || 'Lỗi');
+        btnCrawlPages.textContent = 'Crawl pages';
+        alert(result?.error || 'Error');
       }
     } catch (e) {
-      btnCrawlPages.textContent = 'Crawl từng trang';
-      alert('Lỗi: ' + (e.message || ''));
+      btnCrawlPages.textContent = 'Crawl pages';
+      alert('Error: ' + (e.message || ''));
     }
     btnCrawlPages.disabled = false;
   });
@@ -259,7 +214,7 @@
     try {
       const rows = await chrome.runtime.sendMessage({ type: 'GET_ALL' });
       if (!rows || rows.length === 0) {
-        alert('Chưa có dữ liệu để export.');
+        alert('No data to export yet.');
         return;
       }
       const csv = toCsv(rows);
@@ -271,12 +226,12 @@
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert('Lỗi export: ' + (e.message || ''));
+      alert('Export error: ' + (e.message || ''));
     }
   });
 
   btnClearAll.addEventListener('click', async () => {
-    if (!confirm('Xóa toàn bộ dữ liệu local và config của mọi tab, mở khóa để chỉnh lại. Tiếp tục?')) return;
+    if (!confirm('This will clear all local data and config for ALL tabs. Continue?')) return;
     try {
       await chrome.runtime.sendMessage({ type: 'CLEAR_ALL' });
       await refreshConfigUI();
@@ -291,7 +246,7 @@
       if (tabContextLabel) tabContextLabel.textContent = '';
       if (linksLocationSpan) linksLocationSpan.textContent = '';
     } catch (e) {
-      alert('Lỗi: ' + (e.message || ''));
+      alert('Error: ' + (e.message || ''));
     }
   });
 
@@ -307,7 +262,6 @@
     return lines.join('\n');
   }
 
-  updatePageStatus();
   refreshSavedCount();
   refreshConfigUI();
   refreshCollectionProgress();

@@ -10,8 +10,8 @@
   saveBtn.addEventListener('click', () => {
     const url = (backendUrl.value || '').trim();
     chrome.storage.sync.set({ backendUrl: url || '' }, () => {
-      status.textContent = url ? 'Đã lưu Backend URL.' : 'Đã xóa Backend URL.';
-      status.style.color = 'green';
+      status.textContent = url ? 'Saved.' : 'Cleared.';
+      status.className = 'status ' + (url ? 'ok' : 'warn');
     });
   });
 })();
