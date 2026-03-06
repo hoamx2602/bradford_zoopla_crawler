@@ -141,6 +141,18 @@
     return 'Other';
   }
 
+  /** Lấy giá chỉ từ khối "Listing details" (aria-label), không quét toàn trang. */
+  function getPriceFromListingDetailsDom() {
+    const container = document.querySelector('[aria-label="Listing details"]');
+    if (!container) return null;
+    const text = container.textContent || '';
+    const match = text.match(/£\s*[\d,]+/);
+    if (!match) return null;
+    const n = cleanNumber(match[0]);
+    if (n >= 1000 && n <= 50000000) return n;
+    return null;
+  }
+
   /** Click "Read full description" nếu có, đợi nội dung mở rộng rồi resolve. */
   function clickReadFullDescriptionAndWait() {
     return new Promise((resolve) => {
@@ -205,18 +217,14 @@
     const bodyText = (document.body && document.body.innerText) ? document.body.innerText : '';
     const uiLower = bodyText.toLowerCase();
 
-    if (!data.price) {
-      const priceEls = document.body ? document.body.innerHTML.match(/£\s*[\d,]+/g) : [];
-      let maxPrice = 0;
-      (priceEls || []).forEach((s) => {
-        const n = cleanNumber(s);
-        if (n > 10000) maxPrice = Math.max(maxPrice, n);
-      });
-      if (maxPrice) data.price = maxPrice;
-    }
-    if (!data.price && document.body) {
-      const m = document.body.innerHTML.match(/"price"\s*:\s*"?£?([\d,]+)"?/);
-      if (m) data.price = cleanNumber(m[1]);
+    // Giá: chỉ lấy từ khối "Listing details" (DOM) hoặc từ listing/__NEXT_DATA__, không quét toàn HTML.
+    if (!data.price) data.price = getPriceFromListingDetailsDom();
+    if (!data.price && listing) {
+      const rawPrice = listing.price ?? listing.amount ?? listing.listingPrice ?? listing.displayPrice ?? listing.priceAmount;
+      if (rawPrice != null) {
+        const p = cleanNumber(rawPrice);
+        if (p >= 1000 && p <= 50000000) data.price = p;
+      }
     }
 
     if (!data.epc_rating) {
