@@ -54,6 +54,20 @@
       <div id="activeCrawlTabsList" class="active-crawl-tabs"></div>
     </section>
 
+      <h2 class="card-title">Batch Postcode Search</h2>
+      <p class="card-desc">Search and collect links from multiple postcodes automatically.</p>
+      <div class="form-group">
+        <label for="batchCity">City (optional tagging)</label>
+        <input type="text" id="batchCity" class="input" placeholder="e.g. London">
+      </div>
+      <textarea id="batchPostcodes" class="input" rows="3" placeholder="E1&#10;E2&#10;E3" style="font-family: monospace; font-size: 12px; margin-bottom: 8px;"></textarea>
+      <div class="btn-row">
+        <button type="button" id="btnBatchLondon" class="btn btn-sm">London Presets</button>
+        <button type="button" id="btnStartBatch" class="btn btn-primary">Start batch collect</button>
+      </div>
+      <p id="batchStatus" class="card-desc small muted" style="margin-top: 8px;"></p>
+    </section>
+
     <section class="card">
       <p id="savedCount" class="card-desc">Loading...</p>
       <div class="btn-row">

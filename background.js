@@ -5,6 +5,7 @@ const PREFIX_CFG = 'cfg_';
 const PREFIX_CRAWL = 'crawl_';
 const PREFIX_COLLECT = 'collect_';
 const PREFIX_CPROG = 'cprog_';
+const PREFIX_BATCH = 'batch_';
 
 function k(prefix, tabId) { return prefix + String(tabId); }
 
@@ -201,11 +202,12 @@ async function fetchExistingUrlsFromBackend(urls) {
   const chunkSize = 500;
   for (let i = 0; i < urls.length; i += chunkSize) {
     const chunk = urls.slice(i, i + chunkSize);
+    const chunkUrls = chunk.map(u => typeof u === 'object' ? u.url : u);
     try {
       const res = await fetch(base, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: chunk })
+        body: JSON.stringify({ urls: chunkUrls })
       });
       if (res.ok) {
         const data = await res.json();
@@ -241,6 +243,49 @@ async function runMultiPageCollectStep(tabId, state) {
   if (collectedUrls.length >= maxRecords) {
     const queue = collectedUrls.slice(0, maxRecords);
     const crawlLocation = getLocationFromBaseUrl(baseUrl);
+
+    // Check if it was part of a batch
+    const batch = await getTab(PREFIX_BATCH, tabId);
+    if (batch) {
+      const currentLoc = getLocationFromBaseUrl(baseUrl) || {};
+      const tagged = queue.map(u => ({ 
+        url: u, 
+        city: batch.city || currentLoc.city, 
+        postcode: currentLoc.postcode 
+      }));
+      batch.accumulatedUrls = [...(batch.accumulatedUrls || []), ...tagged];
+      batch.currentIndex++;
+      if (batch.currentIndex < batch.postcodes.length) {
+        await setTab(PREFIX_BATCH, tabId, batch);
+        const nextPc = batch.postcodes[batch.currentIndex].toLowerCase();
+        const nextSearchUrl = `https://www.zoopla.co.uk/for-sale/property/${nextPc}/?q=${nextPc.toUpperCase()}&search_source=for-sale`;
+        
+        // Reset state for the new postcode
+        state.baseUrl = nextSearchUrl;
+        state.currentPage = 1;
+        state.expectingUrl = nextSearchUrl;
+        state.collectedUrls = [];
+        await setTab(PREFIX_COLLECT, tabId, state);
+
+        await setTab(PREFIX_CPROG, tabId, {
+          status: 'collecting',
+          currentPage: 1,
+          linkCount: batch.accumulatedUrls.length,
+          maxRecords: `Batch (${batch.currentIndex + 1}/${batch.postcodes.length})`
+        });
+        await chrome.tabs.update(tabId, { url: nextSearchUrl });
+        return;
+      } else {
+        // Batch complete
+        const finalQueue = batch.accumulatedUrls.slice(0, maxRecords);
+        await setTab(PREFIX_CPROG, tabId, { status: 'done', linkCount: finalQueue.length, pagesDone: 'Batch Complete' });
+        await removeTab(PREFIX_BATCH, tabId);
+        await removeTab(PREFIX_COLLECT, tabId);
+        await setTab(PREFIX_CRAWL, tabId, { queue: finalQueue, index: 0, location: 'Batch' });
+        return;
+      }
+    }
+
     await setTab(PREFIX_CPROG, tabId, { status: 'done', linkCount: queue.length, pagesDone: currentPage });
     await removeTab(PREFIX_COLLECT, tabId);
     await setTab(PREFIX_CRAWL, tabId, { queue, index: 0, location: crawlLocation || '' });
@@ -251,7 +296,17 @@ async function runMultiPageCollectStep(tabId, state) {
   state.currentPage = nextPage;
   state.expectingUrl = nextUrl;
   await setTab(PREFIX_COLLECT, tabId, state);
-  await setTab(PREFIX_CPROG, tabId, { status: 'collecting', currentPage: nextPage, linkCount: collectedUrls.length, maxRecords });
+
+  // When updating progress, show total (accumulated + current)
+  const batch = await getTab(PREFIX_BATCH, tabId);
+  const totalCount = (batch ? (batch.accumulatedUrls || []).length : 0) + collectedUrls.length;
+  await setTab(PREFIX_CPROG, tabId, { 
+    status: 'collecting', 
+    currentPage: nextPage, 
+    linkCount: totalCount, 
+    maxRecords: batch ? `Batch (${batch.currentIndex + 1}/${batch.postcodes.length})` : maxRecords 
+  });
+  
   await chrome.tabs.update(tabId, { url: nextUrl });
 }
 
@@ -270,16 +325,85 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     urls.forEach((u) => { if (!seen.has(u)) { seen.add(u); state.collectedUrls.push(u); } });
     state.collectedUrls = Array.from(seen);
     state.expectingUrl = null;
-    const done = state.collectedUrls.length >= state.maxRecords || (urls.length === 0 && state.collectedUrls.length > 0);
+    const done = state.collectedUrls.length >= state.maxRecords || (urls.length === 0 && state.collectedUrls.length > 0) || (urls.length === 0 && state.currentPage > 1);
     if (done) {
-      const queue = state.collectedUrls.slice(0, state.maxRecords);
+      const queue = state.collectedUrls; // Don't slice yet if in batch
       const crawlLocation = getLocationFromBaseUrl(state.baseUrl);
-      await setTab(PREFIX_CPROG, tabId, { status: 'done', linkCount: queue.length, pagesDone: state.currentPage });
+
+      const batch = await getTab(PREFIX_BATCH, tabId);
+      if (batch) {
+        const currentLoc = getLocationFromBaseUrl(state.baseUrl) || {};
+        const tagged = queue.map(u => ({ 
+          url: u, 
+          city: batch.city || currentLoc.city, 
+          postcode: currentLoc.postcode 
+        }));
+        batch.accumulatedUrls = [...(batch.accumulatedUrls || []), ...tagged];
+        batch.currentIndex++;
+        if (batch.currentIndex < batch.postcodes.length) {
+          await setTab(PREFIX_BATCH, tabId, batch);
+          const nextPc = batch.postcodes[batch.currentIndex].toLowerCase();
+          const nextSearchUrl = `https://www.zoopla.co.uk/for-sale/property/${nextPc}/?q=${nextPc.toUpperCase()}&search_source=for-sale`;
+          
+          // Reset state for next postcode in batch
+          state.baseUrl = nextSearchUrl;
+          state.currentPage = 1;
+          state.expectingUrl = nextSearchUrl;
+          state.collectedUrls = [];
+          await setTab(PREFIX_COLLECT, tabId, state);
+
+          await setTab(PREFIX_CPROG, tabId, {
+            status: 'collecting',
+            currentPage: 1,
+            linkCount: batch.accumulatedUrls.length,
+            maxRecords: `Batch (${batch.currentIndex + 1}/${batch.postcodes.length})`
+          });
+          await chrome.tabs.update(tabId, { url: nextSearchUrl });
+          return;
+        } else {
+          // Batch complete
+          const finalQueue = batch.accumulatedUrls.slice(0, state.maxRecords);
+          await setTab(PREFIX_CPROG, tabId, { status: 'done', linkCount: finalQueue.length, pagesDone: 'Batch Complete' });
+          await removeTab(PREFIX_BATCH, tabId);
+          await removeTab(PREFIX_COLLECT, tabId);
+          await setTab(PREFIX_CRAWL, tabId, { queue: finalQueue, index: 0, location: 'Batch' });
+          return;
+        }
+      }
+
+      const finalQueue = queue.slice(0, state.maxRecords);
+      await setTab(PREFIX_CPROG, tabId, { status: 'done', linkCount: finalQueue.length, pagesDone: state.currentPage });
       await removeTab(PREFIX_COLLECT, tabId);
-      await setTab(PREFIX_CRAWL, tabId, { queue, index: 0, location: crawlLocation || '' });
+      await setTab(PREFIX_CRAWL, tabId, { queue: finalQueue, index: 0, location: crawlLocation || '' });
       return;
     }
-    await setTab(PREFIX_CPROG, tabId, { status: 'collecting', currentPage: state.currentPage, linkCount: state.collectedUrls.length, maxRecords: state.maxRecords });
+    const batch = await getTab(PREFIX_BATCH, tabId);
+    const totalCount = (batch ? (batch.accumulatedUrls || []).length : 0) + state.collectedUrls.length;
+    
+    // If total reached, we can stop the whole process
+    if (totalCount >= state.maxRecords) {
+       // Force done
+       const needed = state.maxRecords - (batch ? batch.accumulatedUrls.length : 0);
+       const lastLinks = state.collectedUrls.slice(0, needed);
+       if (batch) {
+          const currentLoc = getLocationFromBaseUrl(state.baseUrl) || {};
+          const tagged = lastLinks.map(u => ({ url: u, city: batch.city || currentLoc.city, postcode: currentLoc.postcode }));
+          batch.accumulatedUrls = [...(batch.accumulatedUrls || []), ...tagged];
+          const finalQueue = batch.accumulatedUrls.slice(0, state.maxRecords);
+          await setTab(PREFIX_CPROG, tabId, { status: 'done', linkCount: finalQueue.length, pagesDone: 'Limit Reached' });
+          await removeTab(PREFIX_BATCH, tabId);
+          await removeTab(PREFIX_COLLECT, tabId);
+          await setTab(PREFIX_CRAWL, tabId, { queue: finalQueue, index: 0, location: batch.city || 'Batch' });
+          return;
+       }
+    }
+
+    await setTab(PREFIX_CPROG, tabId, { 
+       status: 'collecting', 
+       currentPage: state.currentPage, 
+       linkCount: totalCount, 
+       maxRecords: batch ? `Batch (${batch.currentIndex + 1}/${batch.postcodes.length})` : state.maxRecords 
+    });
     await setTab(PREFIX_COLLECT, tabId, state);
     await runMultiPageCollectStep(tabId, state);
   } catch (e) {
@@ -376,6 +500,42 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       await runMultiPageCollectStep(tabId, state);
       return { ok: true };
     }
+    if (msg.type === 'START_BATCH_COLLECT') {
+      const { tabId, postcodes, city } = msg;
+      if (!tabId || !postcodes || postcodes.length === 0) return { ok: false, error: 'Missing tab or postcodes.' };
+      const cfg = await getTab(PREFIX_CFG, tabId);
+      if (!cfg || !cfg.locked) {
+        return { ok: false, error: 'Save config (Max records) for this tab first.' };
+      }
+      const firstPc = postcodes[0].toLowerCase();
+      const startUrl = `https://www.zoopla.co.uk/for-sale/property/${firstPc}/?q=${firstPc.toUpperCase()}&search_source=for-sale`;
+
+      await setTab(PREFIX_BATCH, tabId, {
+        postcodes,
+        currentIndex: 0,
+        accumulatedUrls: [],
+        city: city || null
+      });
+
+      // Prepare collection state for the FIRST postcode
+      const state = {
+        baseUrl: `https://www.zoopla.co.uk/for-sale/property/${firstPc}/?q=${firstPc.toUpperCase()}&search_source=for-sale`,
+        currentPage: 1,
+        maxRecords: cfg.maxRecords || 500,
+        collectedUrls: [],
+        expectingUrl: null
+      };
+      await setTab(PREFIX_COLLECT, tabId, state);
+      await setTab(PREFIX_CPROG, tabId, {
+        status: 'collecting',
+        currentPage: 1,
+        linkCount: 0,
+        maxRecords: `Batch (1/${postcodes.length})`
+      });
+
+      await chrome.tabs.update(tabId, { url: startUrl });
+      return { ok: true };
+    }
     if (msg.type === 'GET_COLLECTION_PROGRESS') {
       const tabId = msg.tabId;
       if (tabId == null) return null;
@@ -417,13 +577,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return { ok: false, error: 'No link list in this tab. Collect links in this tab first.' };
       }
       const { queue, location: crawlLocation } = session;
-      const existingSet = await fetchExistingUrlsFromBackend(queue);
-      const toCrawl = existingSet.size > 0 ? queue.filter((u) => !existingSet.has(u)) : queue;
+      const urlsOnly = queue.map(u => typeof u === 'object' ? u.url : u);
+      const existingSet = await fetchExistingUrlsFromBackend(urlsOnly);
+      const toCrawl = existingSet.size > 0 ? queue.filter((u) => {
+         const url = typeof u === 'object' ? u.url : u;
+         return !existingSet.has(url);
+      }) : queue;
       if (toCrawl.length === 0) {
         return { ok: false, error: 'All ' + queue.length + ' links already exist in database. No need to crawl again.' };
       }
       await setTab(PREFIX_CRAWL, tabId, { queue: toCrawl, index: 0, location: crawlLocation || '' });
-      await chrome.tabs.update(tabId, { url: toCrawl[0] });
+      const firstItem = toCrawl[0];
+      const firstUrl = typeof firstItem === 'object' ? firstItem.url : firstItem;
+      await chrome.tabs.update(tabId, { url: firstUrl });
       return { ok: true, skipped: queue.length - toCrawl.length, total: toCrawl.length };
     }
     if (msg.type === 'PAGE_LOADED') {
@@ -432,13 +598,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const session = await getTab(PREFIX_CRAWL, tabId);
       if (!session || !session.queue || session.queue.length === 0) return null;
       const { queue, index: crawlIndex, location: crawlLocation } = session;
-      if (msg.url !== queue[crawlIndex]) return null;
+      const currentItem = queue[crawlIndex];
+      const targetUrl = typeof currentItem === 'object' ? currentItem.url : currentItem;
+      if (msg.url !== targetUrl) return null;
       await new Promise((r) => setTimeout(r, 1500));
       try {
         const res = await chrome.tabs.sendMessage(tabId, { type: 'EXTRACT_CURRENT_PAGE' });
         if (res && res.data) {
-          // Tag with crawl location info if missing
-          if (crawlLocation) {
+          // Tag with metadata if missing
+          if (typeof currentItem === 'object') {
+            if (currentItem.postcode && !res.data.postcode) {
+              res.data.postcode = currentItem.postcode;
+            }
+            if (currentItem.city && (!res.data.city || res.data.city === '')) {
+              res.data.city = currentItem.city;
+            }
+          }
+          // Fallback to crawlLocation logic if metadata not found
+          if (crawlLocation && typeof crawlLocation === 'object') {
             if (crawlLocation.postcode && !res.data.postcode) {
               res.data.postcode = crawlLocation.postcode;
             }
@@ -454,7 +631,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const nextIndex = crawlIndex + 1;
       if (nextIndex < queue.length) {
         await setTab(PREFIX_CRAWL, tabId, { queue, index: nextIndex, location: crawlLocation || '' });
-        await chrome.tabs.update(tabId, { url: queue[nextIndex] });
+        const nextItem = queue[nextIndex];
+        const nextUrl = typeof nextItem === 'object' ? nextItem.url : nextItem;
+        await chrome.tabs.update(tabId, { url: nextUrl });
       } else {
         await pushRemainderToBackend(tabId);
       }
