@@ -299,7 +299,7 @@
   });
 
   function toCsv(rows) {
-    const keys = ['url', 'city', 'price', 'address', 'property_type', 'bedrooms', 'bathrooms', 'living_rooms', 'area_sqft', 'description', 'epc_rating'];
+    const keys = ['url', 'city', 'postcode', 'price', 'address', 'property_type', 'bedrooms', 'bathrooms', 'living_rooms', 'area_sqft', 'description', 'epc_rating'];
     const header = keys.join(',');
     const escape = (v) => {
       if (v == null) return '';

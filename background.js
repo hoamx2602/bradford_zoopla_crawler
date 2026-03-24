@@ -116,7 +116,7 @@ async function maybeAutoPushAfterSave(tabId) {
 }
 
 function toCsv(rows) {
-  const keys = ['url', 'city', 'price', 'address', 'property_type', 'bedrooms', 'bathrooms', 'living_rooms', 'area_sqft', 'description', 'epc_rating'];
+  const keys = ['url', 'city', 'postcode', 'price', 'address', 'property_type', 'bedrooms', 'bathrooms', 'living_rooms', 'area_sqft', 'description', 'epc_rating'];
   const header = keys.join(',');
   const escape = (v) => {
     if (v == null) return '';
@@ -222,8 +222,18 @@ function isSearchPageUrl(url) {
 
 function getLocationFromBaseUrl(baseUrl) {
   if (!baseUrl || typeof baseUrl !== 'string') return null;
-  const m = baseUrl.match(/\/property\/([^/?]+)/);
-  return m ? m[1].replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : null;
+  let postcode = null;
+  let city = null;
+  try {
+    const u = new URL(baseUrl);
+    const q = u.searchParams.get('q');
+    if (q && q.trim()) postcode = q.trim().toUpperCase();
+  } catch (e) {}
+  const m = baseUrl.match(/\/for-sale\/property\/([^/?]+)/);
+  if (m) {
+    city = m[1].replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return (city || postcode) ? { city, postcode } : null;
 }
 
 async function runMultiPageCollectStep(tabId, state) {
@@ -427,7 +437,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       try {
         const res = await chrome.tabs.sendMessage(tabId, { type: 'EXTRACT_CURRENT_PAGE' });
         if (res && res.data) {
-          if (crawlLocation && crawlLocation.trim()) res.data.city = crawlLocation.trim();
+          // Tag with crawl location info if missing
+          if (crawlLocation) {
+            if (crawlLocation.postcode && !res.data.postcode) {
+              res.data.postcode = crawlLocation.postcode;
+            }
+            if (crawlLocation.city && (!res.data.city || res.data.city === '')) {
+              res.data.city = crawlLocation.city;
+            }
+          }
           await add(res.data);
           await maybeAutoPushAfterSave(tabId);
           await maybeAutoExportCsv(tabId);

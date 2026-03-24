@@ -2,8 +2,19 @@
   const BASE = 'https://www.zoopla.co.uk';
 
   function getLocationFromSearchUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    let postcode = null;
+    let city = null;
+    try {
+      const u = new URL(url);
+      const q = u.searchParams.get('q');
+      if (q && q.trim()) postcode = q.trim().toUpperCase();
+    } catch (e) {}
     const m = url.match(/\/for-sale\/property\/([^/?]+)/);
-    return m ? m[1].replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : null;
+    if (m) {
+      city = m[1].replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+    return (city || postcode) ? { city, postcode } : null;
   }
 
   function getSearchBaseUrlAndPage() {
@@ -175,13 +186,14 @@
 
   function extractCurrentPage() {
     const url = window.location.href;
-    const location = getLocationFromSearchUrl(document.referrer) || getLocationFromSearchUrl(url) || null;
+    const locObj = getLocationFromSearchUrl(document.referrer) || getLocationFromSearchUrl(url) || {};
     const dom = getDomAddressAndDescription();
     const listing = getListingFromNextData();
 
     const data = {
       url: url,
-      city: location,
+      city: locObj.city || null,
+      postcode: locObj.postcode || null,
       price: null,
       address: dom.address || null,
       property_type: null,
@@ -201,6 +213,14 @@
           data.address = normAddr(listing.address);
         }
       }
+
+      if (listing.address && typeof listing.address === 'object') {
+        const town = listing.address.city || listing.address.town;
+        const pc = listing.address.postalCode || listing.address.postcode || listing.address.outcode;
+        if (town) data.city = town;
+        if (pc) data.postcode = pc;
+      }
+
       let desc = listing.detailedDescription || listing.description || listing.propertyDescription || listing.fullDescription || '';
       if (Array.isArray(desc)) desc = desc.join(' ');
       const features = listing.features || listing.bulletPoints || listing.keyFeatures || [];
@@ -212,6 +232,13 @@
         const s = String(epc).trim().toUpperCase();
         data.epc_rating = (s[0] && 'ABCDEFG'.includes(s[0])) ? s[0] : s;
       }
+    }
+
+    // Try to extract postcode from address if still missing
+    if (!data.postcode) {
+      const postcodeRe = /[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}/i;
+      const m = (data.address || '').match(postcodeRe);
+      if (m) data.postcode = m[0].trim();
     }
 
     const bodyText = (document.body && document.body.innerText) ? document.body.innerText : '';
