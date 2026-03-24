@@ -451,7 +451,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const { tabId, maxRecords, autoPushEvery } = msg;
       if (tabId == null) return { ok: false };
       await setTab(PREFIX_CFG, tabId, {
-        maxRecords: Math.max(1, Math.min(5000, maxRecords || 500)),
+        maxRecords: Math.max(1, Math.min(50000, maxRecords || 500)),
         autoPushEvery: Math.max(1, Math.min(1000, autoPushEvery || 50)),
         locked: true
       });
@@ -470,7 +470,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (!cfg || !cfg.locked) {
         return { ok: false, error: 'Save config for this tab first. Enter max records and auto-push, then click "Save config".' };
       }
-      const maxRecords = Math.max(1, Math.min(5000, cfg.maxRecords || 500));
+      const maxRecords = Math.max(1, Math.min(50000, cfg.maxRecords || 500));
       let baseUrl, currentPage;
       try {
         const res = await chrome.tabs.sendMessage(tabId, { type: 'GET_SEARCH_BASE_URL' });
