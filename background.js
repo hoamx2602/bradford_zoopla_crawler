@@ -312,13 +312,14 @@ async function runMultiPageCollectStep(tabId, state) {
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete' || !tab.url) return;
+
+  // Case 1: Collecting links (Search results pages)
   const state = await getTab(PREFIX_COLLECT, tabId);
-  if (!state) return;
-  if (!isSearchPageUrl(tab.url)) return;
-  const expecting = state.expectingUrl;
-  const urlNorm = tab.url.replace(/#.*$/, '');
-  if (expecting && urlNorm !== expecting.replace(/#.*$/, '')) return;
-  try {
+  if (state && isSearchPageUrl(tab.url)) {
+    const expecting = state.expectingUrl;
+    const urlNorm = tab.url.replace(/#.*$/, '');
+    if (expecting && urlNorm !== expecting.replace(/#.*$/, '')) return;
+    try {
     const res = await chrome.tabs.sendMessage(tabId, { type: 'GET_LISTING_LINKS' });
     const urls = (res && res.urls) || [];
     const seen = new Set(state.collectedUrls);
@@ -406,9 +407,38 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     });
     await setTab(PREFIX_COLLECT, tabId, state);
     await runMultiPageCollectStep(tabId, state);
-  } catch (e) {
-    await removeTab(PREFIX_COLLECT, tabId);
-    await setTab(PREFIX_CPROG, tabId, { status: 'error', error: e.message });
+    } catch (e) {
+      await removeTab(PREFIX_COLLECT, tabId);
+      await setTab(PREFIX_CPROG, tabId, { status: 'error', error: e.message });
+    }
+  }
+
+  // Case 2: Crawling detail pages (Detecting redirects/dead links)
+  const session = await getTab(PREFIX_CRAWL, tabId);
+  if (session && session.queue && session.queue.length > 0) {
+    const { queue, index, location: crawlLocation } = session;
+    const currentItem = queue[index];
+    if (!currentItem) return;
+    const targetUrl = (typeof currentItem === 'object' ? currentItem.url : currentItem).replace(/#.*$/, '');
+    const currentUrl = tab.url.replace(/#.*$/, '');
+    
+    // If we land on a page that is NOT the target details page and NOT any other details page
+    // it means Zoopla redirected us (usually to home or a "not found" page)
+    if (currentUrl !== targetUrl && !/\/for-sale\/details\/\d+/.test(tab.url)) {
+      console.log(`[Crawl] Dead link/Redirect detected. Expected ${targetUrl}, landed on ${currentUrl}. Skipping...`);
+      const nextIndex = index + 1;
+      if (nextIndex < queue.length) {
+        await setTab(PREFIX_CRAWL, tabId, { queue, index: nextIndex, location: crawlLocation || '' });
+        const nextItem = queue[nextIndex];
+        const nextUrl = typeof nextItem === 'object' ? nextItem.url : nextItem;
+        // Wait a bit before skipping to avoid getting blocked
+        await new Promise(r => setTimeout(r, 1000));
+        await chrome.tabs.update(tabId, { url: nextUrl });
+      } else {
+        await pushRemainderToBackend(tabId);
+        await removeTab(PREFIX_CRAWL, tabId);
+      }
+    }
   }
 });
 
