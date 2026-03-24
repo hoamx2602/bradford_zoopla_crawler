@@ -174,7 +174,7 @@
   btnSaveConfig.addEventListener('click', async () => {
     const tab = await getActiveTab();
     if (!tab?.id) return;
-    const maxRecords = Math.max(1, Math.min(5000, parseInt(inputMaxRecords.value, 10) || 500));
+    const maxRecords = Math.max(1, Math.min(50000, parseInt(inputMaxRecords.value, 10) || 500));
     const autoPushEvery = Math.max(1, Math.min(1000, parseInt(inputAutoPushEvery.value, 10) || 50));
     await chrome.runtime.sendMessage({
       type: 'SET_CRAWL_CONFIG_FOR_TAB',
